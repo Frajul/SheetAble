@@ -55,7 +55,7 @@ function RandomPieceSelection({ sheetPages, page }) {
               src={`${axios.defaults.baseURL}/sheet/thumbnail/${sheet.safe_sheet_name}`}
               alt="Sheet Thumbnail"
               onClick={() =>
-                history.push(`sheet/${sheet.pdf_url.split("pdf/").pop()}`)
+                history.push(`sheetviewer/${sheet.pdf_url.split("pdf/").pop()}`)
               }
             />
             <div className="sheet-name-container n-cursor">

@@ -12,6 +12,7 @@ import Ping from "./Components/Ping/Ping";
 import Redirect from "./Components/Redirect/Redirect";
 import Settings from "./Components/SettingsPage/Settings";
 import Sheet from "./Components/Sheet/Sheet";
+import SheetViewer from "./Components/SheetViewer/SheetViewer";
 import SheetsPage from "./Components/SheetsPage/SheetsPage";
 import UploadPage from "./Components/Upload/UploadPage";
 
@@ -86,6 +87,11 @@ function App() {
                   exact
                   path="/sheet/:safeComposerName/:safeSheetName"
                   component={Sheet}
+                />
+                <Route
+                  exact
+                  path="/sheetviewer/:safeComposerName/:safeSheetName"
+                  component={SheetViewer}
                 />
                 <Route exact path="/search" component={SearchPage} />
                 <Route

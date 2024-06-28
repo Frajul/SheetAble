@@ -11,7 +11,7 @@ function SheetBox({ sheet }) {
     <li
       key={sheet.sheet_name}
       onClick={() =>
-        history.push(`/sheet/${sheet.pdf_url.split("pdf/").pop()}`)
+        history.push(`sheetviewer/${sheet.pdf_url.split("pdf/").pop()}`)
       }
       className="li-height"
     >
