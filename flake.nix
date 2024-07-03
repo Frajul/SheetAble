@@ -7,42 +7,58 @@
     flake-utils.url = "github:numtide/flake-utils";
   };
 
-  outputs = { self, nixpkgs, flake-utils }:
-    flake-utils.lib.eachDefaultSystem
-      (system:
-        let
-          pkgs = nixpkgs.legacyPackages.${system};
-          run-frontend = pkgs.writeShellScriptBin "run-frontend" ''
-            cd frontend
-            ${pkgs.nodejs_20}/bin/npm start
-          '';
-        in rec {
-          packages.backend = pkgs.buildGoModule {
-            pname = "backend";
-            version = "v0.8.1";
-            src = ./backend;
-            vendorHash = "sha256-/E9xRAjUWhq1/jABYg83QAK5hyOrWDoIOi4jZ3KaUOs=";
-          };
-          apps.frontend = {
-            type = "app";
-            program = "${run-frontend}/bin/run-frontend";
-          };
+  outputs =
+    {
+      self,
+      nixpkgs,
+      flake-utils,
+    }:
+    flake-utils.lib.eachDefaultSystem (
+      system:
+      let
+        pkgs = nixpkgs.legacyPackages.${system};
+        frontend = pkgs.writeShellScriptBin "frontend" ''
+          cd frontend
+          ${pkgs.nodejs_20}/bin/npm start
+        '';
+        backend = pkgs.writeShellScriptBin "backend" ''
+          cd backend
+          ${pkgs.go}/bin/go run .
+        '';
+      in
+      rec {
+        packages.backend = pkgs.buildGoModule {
+          pname = "backend";
+          version = "v0.8.1";
+          src = ./backend;
+          vendorHash = "sha256-aoISfI0nzeifEx0D3EaWQG/A27CApLl/KCoOlviC5Ng=";
+        };
+        apps.frontend = {
+          type = "app";
+          program = "${frontend}/bin/frontend";
+        };
 
-          devShells.default = pkgs.mkShell {
-            buildInputs = with pkgs; [
-              run-frontend
-              go
-              nodejs_20
-            ];
+        devShells.default = pkgs.mkShell {
+          buildInputs = with pkgs; [
+            frontend
+            backend
+            
+            go
+            godef # development only
+            gotools # developmet only
+            go-rice
+            nodejs_20
+            nodePackages.serve
+          ];
 
-            # shellHook = ''
-            # '';
+          # shellHook = ''
+          # '';
 
-            # envvars
-            # DEV=1;
-          };
+          # envvars
+          # DEV=1;
+        };
 
-          packages.default = packages.backend;
-        }
-      );
+        packages.default = packages.backend;
+      }
+    );
 }
