@@ -42,10 +42,11 @@
           buildInputs = with pkgs; [
             frontend
             backend
-            
+
             go
             godef # development only
             gotools # developmet only
+            gopls # development only
             go-rice
             nodejs_20
             nodePackages.serve
