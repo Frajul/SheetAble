@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"mime/multipart"
 	"net/http"
 	"os"
@@ -69,6 +70,7 @@ func (server *Server) UploadFile(c *gin.Context) {
 	thumbnailPath := path.Join(Config().ConfigPath, "sheets/thumbnails")
 
 	// Save composer in the database
+	// TODO: first check whether composer already exists in database
 	comp := safeComposer(server, uploadForm.Composer)
 
 	utils.CreateDir(prePath)
@@ -172,6 +174,22 @@ func getPortraitURL(composerName string) Comp {
 	return composers[0]
 }
 
+// Save sheet to database
+// TODO: rename function to make clear it is used in library sync
+func SafeComposer(server *Server, composer string) {
+	compo := getPortraitURL(composer)
+
+	comp := models.Composer{
+		Name:        compo.CompleteName,
+		SafeName:    compo.CompleteName, // TODO: fix problem with safe name
+		PortraitURL: compo.Portrait,
+		Epoch:       compo.Epoch,
+	}
+
+	comp.Prepare()
+	comp.SaveComposer(server.DB)
+}
+
 func safeComposer(server *Server, composer string) Comp {
 
 	compo := getPortraitURL(composer)
@@ -205,6 +223,27 @@ func checkComposer(path string, comp Comp) string {
 	}
 	utils.CreateDir(path)
 	return path
+}
+
+// Save sheet to database
+// TODO: rename function to make clear it is used in library sync
+func SafeSheet(server *Server, safeNameAndComposer models.ComposerSheetSafeNames) {
+	// Create database entry
+	sheet := models.Sheet{
+		SafeSheetName:   safeNameAndComposer.SheetSafeName,
+		SheetName:       safeNameAndComposer.SheetSafeName,
+		SafeComposer:    safeNameAndComposer.ComposerSafeName,
+		Composer:        safeNameAndComposer.ComposerSafeName,
+		UploaderID:      0, // TODO: add uid for sync task
+		ReleaseDate:     createDate("1999-12-31"),
+		InformationText: "",
+	}
+	sheet.Prepare()
+
+	_, err := sheet.SaveSheet(server.DB)
+	if err != nil {
+		log.Fatal(err)
+	}
 }
 
 func createFile(uid uint32, server *Server, fullpath string, file multipart.File, comp Comp, sheetName string, releaseDate string, informationText string) error {

@@ -75,7 +75,7 @@ func (c *Composer) UpdateComposer(db *gorm.DB, originalName string, updatedName 
 	db.Exec("UPDATE sheets SET pdf_url = REPLACE(pdf_url, ?, ?) WHERE safe_composer = ?;", originalName, sanitize.Name(updatedName), originalName)
 	db.Model(&Sheet{}).Where("safe_composer = ?", originalName).Update("safe_composer", sanitize.Name(updatedName))
 	db.Model(&Sheet{}).Where("safe_composer = ?", sanitize.Name(updatedName)).Update("composer", updatedName)
-	// Rename folder
+	// Rename folder // TODO: if already exists: merge folders
 	p := path.Join(Config().ConfigPath, "sheets/uploaded-sheets/")
 	os.Rename(p+"/"+originalName, p+"/"+sanitize.Name(updatedName))
 
@@ -218,6 +218,12 @@ func (c *Composer) List(db *gorm.DB, pagination Pagination) (*Pagination, error)
 	pagination.Rows = composers
 
 	return &pagination, nil
+}
+
+func ListAllComposerNames(db *gorm.DB) []string {
+	var names []string
+	db.Model(&Composer{}).Pluck("safe_name", &names)
+	return names
 }
 
 func CheckAndDeleteUnknownComposer(db *gorm.DB) {

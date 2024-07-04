@@ -15,6 +15,29 @@ import (
 	"github.com/jinzhu/gorm"
 )
 
+type ComposerSheetSafeNames struct {
+	ComposerSafeName string `json:"safe_composer"`
+	SheetSafeName    string `gorm:"primary_key" json:"safe_sheet_name"`
+}
+
+func CompareComposerSheetSafeNames(left, right ComposerSheetSafeNames) int {
+	if left.ComposerSafeName == right.ComposerSafeName {
+		if left.SheetSafeName == right.SheetSafeName {
+			return 0
+		} else if left.SheetSafeName < right.SheetSafeName {
+			return -1
+		} else {
+			return 1
+		}
+	} else {
+		if left.ComposerSafeName < right.ComposerSafeName {
+			return -1
+		} else {
+			return 1
+		}
+	}
+}
+
 type Sheet struct {
 	SafeSheetName   string `gorm:"primary_key" json:"safe_sheet_name"`
 	SheetName       string `json:"sheet_name"`
@@ -48,6 +71,7 @@ func (s *Sheet) SaveSheet(db *gorm.DB) (*Sheet, error) {
 	return s, nil
 }
 
+// TODO: this function does not take composer. That leads to problems when there are sheets with the same name from different composers
 func (s *Sheet) DeleteSheet(db *gorm.DB, sheetName string) (int64, error) {
 
 	sheet, err := s.FindSheetBySafeName(db, sheetName)
@@ -128,6 +152,21 @@ func (s *Sheet) List(db *gorm.DB, pagination Pagination, composer string) (*Pagi
 	pagination.Rows = sheets
 
 	return &pagination, nil
+}
+
+func ListAllSafeSheetNamesAndComposers(db *gorm.DB) []ComposerSheetSafeNames {
+	var sheetNames []ComposerSheetSafeNames
+	// TODO: use smart select
+	// db.Model(&Sheet{}).Find(&sheets)
+
+	var sheets []Sheet
+	db.Find(&sheets)
+
+	for _, sheet := range sheets {
+		sheetNames = append(sheetNames, ComposerSheetSafeNames{ComposerSafeName: sheet.SafeComposer, SheetSafeName: sheet.SafeSheetName})
+	}
+
+	return sheetNames
 }
 
 func SearchSheet(db *gorm.DB, searchValue string) []*Sheet {
