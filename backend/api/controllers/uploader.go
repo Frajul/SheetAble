@@ -21,13 +21,12 @@ import (
 
 	"github.com/SheetAble/SheetAble/backend/api/auth"
 	"github.com/SheetAble/SheetAble/backend/api/forms"
-	. "github.com/fiam/gounidecode/unidecode"
 	"github.com/gin-gonic/gin"
+	"github.com/rs/xid"
 
 	. "github.com/SheetAble/SheetAble/backend/api/config"
 	"github.com/SheetAble/SheetAble/backend/api/models"
 	"github.com/SheetAble/SheetAble/backend/api/utils"
-	"github.com/kennygrant/sanitize"
 )
 
 // Structs for handling the response on the Open Opus API
@@ -103,7 +102,7 @@ func (server *Server) UploadFile(c *gin.Context) {
 	}
 
 	// Send POST request to python server for creating the thumbnail (first page of pdf as an image)
-	if !utils.RequestToPdfToImage(fullpath, sanitize.Name(Unidecode(sheetName))) {
+	if !utils.RequestToPdfToImage(fullpath, models.SanitizeName(sheetName)) {
 		return
 	}
 
@@ -142,7 +141,7 @@ func getPortraitURL(composerName string) Comp {
 
 		return Comp{
 			CompleteName: composerName,
-			SafeName:     sanitize.Name(Unidecode(composerName)),
+			SafeName:     models.SanitizeName(composerName),
 			Portrait:     "https://icon-library.com/images/unknown-person-icon/unknown-person-icon-4.jpg",
 			Epoch:        "Unknown",
 		}
@@ -165,7 +164,7 @@ func getPortraitURL(composerName string) Comp {
 	if len(composers) == 0 || (!strings.EqualFold(composerName, composers[0].Name) && !strings.EqualFold(composerName, composers[0].CompleteName)) {
 		return Comp{
 			CompleteName: composerName,
-			SafeName:     sanitize.Name(Unidecode(composerName)),
+			SafeName:     models.SanitizeName(composerName),
 			Portrait:     "https://icon-library.com/images/unknown-person-icon/unknown-person-icon-4.jpg",
 			Epoch:        "Unknown",
 		}
@@ -191,13 +190,11 @@ func SafeComposer(server *Server, composer string) {
 }
 
 func safeComposer(server *Server, composer string) Comp {
-
 	compo := getPortraitURL(composer)
 
 	if compo.SafeName == "" {
 		// Used for chinese/japanese chars etc
-		unideCodeName := Unidecode(compo.CompleteName)
-		compo.SafeName = sanitize.Name(unideCodeName)
+		compo.SafeName = models.SanitizeName(compo.CompleteName)
 	}
 
 	comp := models.Composer{
@@ -227,13 +224,14 @@ func checkComposer(path string, comp Comp) string {
 
 // Save sheet to database
 // TODO: rename function to make clear it is used in library sync
-func SafeSheet(server *Server, safeNameAndComposer models.ComposerSheetSafeNames) {
+func SafeSheet(server *Server, originalNameAndComposer, safeNameAndComposer models.ComposerSheetSafeNames) {
 	// Create database entry
 	sheet := models.Sheet{
+		Uuid:            generateNonexistentUuid(server),
 		SafeSheetName:   safeNameAndComposer.SheetSafeName,
-		SheetName:       safeNameAndComposer.SheetSafeName,
+		SheetName:       originalNameAndComposer.SheetSafeName,
 		SafeComposer:    safeNameAndComposer.ComposerSafeName,
-		Composer:        safeNameAndComposer.ComposerSafeName,
+		Composer:        originalNameAndComposer.ComposerSafeName,
 		UploaderID:      0, // TODO: add uid for sync task
 		ReleaseDate:     createDate("1999-12-31"),
 		InformationText: "",
@@ -246,12 +244,22 @@ func SafeSheet(server *Server, safeNameAndComposer models.ComposerSheetSafeNames
 	}
 }
 
+func generateNonexistentUuid(server *Server) string {
+	uuid := xid.New().String()
+	if existsUuid(server.DB, uuid) {
+		return generateNonexistentUuid(server)
+	} else {
+		return uuid
+	}
+}
+
 func createFile(uid uint32, server *Server, fullpath string, file multipart.File, comp Comp, sheetName string, releaseDate string, informationText string) error {
 	// Create database entry
 	sheet := models.Sheet{
-		SafeSheetName:   sanitize.Name(Unidecode(sheetName)),
+		Uuid:            generateNonexistentUuid(server),
+		SafeSheetName:   models.SanitizeName(sheetName),
 		SheetName:       sheetName,
-		SafeComposer:    sanitize.Name(Unidecode(comp.CompleteName)),
+		SafeComposer:    models.SanitizeName(comp.CompleteName),
 		Composer:        comp.CompleteName,
 		UploaderID:      uid,
 		ReleaseDate:     createDate(releaseDate),
@@ -280,7 +288,7 @@ func createDate(date string) time.Time {
 
 func checkFile(pathName string, sheetName string) (string, error) {
 	// Check if the file already exists
-	fullpath := fmt.Sprintf("%s/%s.pdf", pathName, sanitize.Name(Unidecode(sheetName)))
+	fullpath := fmt.Sprintf("%s/%s.pdf", pathName, models.SanitizeName(sheetName))
 	if _, err := os.Stat(fullpath); err == nil {
 		return "", errors.New("file already exists")
 	}

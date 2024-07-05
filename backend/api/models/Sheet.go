@@ -10,6 +10,8 @@ import (
 
 	. "github.com/SheetAble/SheetAble/backend/api/config"
 	"github.com/SheetAble/SheetAble/backend/api/utils"
+	"github.com/fiam/gounidecode/unidecode"
+	"github.com/kennygrant/sanitize"
 	"github.com/lib/pq"
 
 	"github.com/jinzhu/gorm"
@@ -18,6 +20,23 @@ import (
 type ComposerSheetSafeNames struct {
 	ComposerSafeName string `json:"safe_composer"`
 	SheetSafeName    string `gorm:"primary_key" json:"safe_sheet_name"`
+}
+
+func (sheet *ComposerSheetSafeNames) SheetPath() string {
+	return path.Join(sheet.ComposerDirPath(), sheet.SheetSafeName+".pdf")
+}
+
+func (sheet *ComposerSheetSafeNames) ComposerDirPath() string {
+	return path.Join(Config().ConfigPath, "sheets/uploaded-sheets", sheet.ComposerSafeName)
+}
+
+func (sheet *ComposerSheetSafeNames) Sanitize() {
+	sheet.ComposerSafeName = SanitizeName(sheet.ComposerSafeName)
+	sheet.SheetSafeName = SanitizeName(sheet.SheetSafeName)
+}
+
+func (sheet *ComposerSheetSafeNames) IsSanitized() bool {
+	return sheet.ComposerSafeName == SanitizeName(sheet.ComposerSafeName) && sheet.SheetSafeName == SanitizeName(sheet.SheetSafeName)
 }
 
 func CompareComposerSheetSafeNames(left, right ComposerSheetSafeNames) int {
@@ -39,7 +58,8 @@ func CompareComposerSheetSafeNames(left, right ComposerSheetSafeNames) int {
 }
 
 type Sheet struct {
-	SafeSheetName   string `gorm:"primary_key" json:"safe_sheet_name"`
+	Uuid            string `gorm:"primary_key"`
+	SafeSheetName   string `json:"safe_sheet_name"`
 	SheetName       string `json:"sheet_name"`
 	SafeComposer    string `json:"safe_composer"`
 	Composer        string `json:"composer"`
@@ -73,7 +93,6 @@ func (s *Sheet) SaveSheet(db *gorm.DB) (*Sheet, error) {
 
 // TODO: this function does not take composer. That leads to problems when there are sheets with the same name from different composers
 func (s *Sheet) DeleteSheet(db *gorm.DB, sheetName string) (int64, error) {
-
 	sheet, err := s.FindSheetBySafeName(db, sheetName)
 	if err != nil {
 		if gorm.IsRecordNotFoundError(err) {
@@ -194,6 +213,7 @@ func (s *Sheet) AppendTag(db *gorm.DB, appendTag string) {
 	db.Model(&s).Update(Sheet{Tags: newArray})
 }
 
+// TODO: rename to DeleteTag
 func (s *Sheet) DelteTag(db *gorm.DB, value string) bool {
 
 	// Deleting a tag by it's value
@@ -231,4 +251,8 @@ func FindSheetByTag(db *gorm.DB, tag string) []*Sheet {
 	}
 
 	return affectedSheets
+}
+
+func SanitizeName(s string) string {
+	return sanitize.Name(unidecode.Unidecode(s))
 }

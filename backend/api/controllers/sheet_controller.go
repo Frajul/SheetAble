@@ -246,3 +246,14 @@ func getSheet(db *gorm.DB, c *gin.Context) *models.Sheet {
 
 	return sheet
 }
+
+func existsUuid(db *gorm.DB, uuid string) bool {
+	err := db.Model(models.Sheet{}).First("uuid = ?", uuid).Error
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return false
+		}
+		return false // TODO: error handling
+	}
+	return true
+}
