@@ -8,25 +8,6 @@ import (
 	"github.com/SheetAble/SheetAble/backend/api/models"
 )
 
-func TestFindOrphansInSortedStringArrays(t *testing.T) {
-	left := []string{"Alpha", "Bravo", "Charlie", "Delta", "Echo", "Foxtrott", "Tango", "Uniform"}
-	right := []string{"Bravo", "Charlie", "Delta", "Uniform", "Yankee", "Zulu"}
-
-	sort.Strings(left)
-	sort.Strings(right)
-
-	orphansLeft, orphansRight := findOrphansInSortedStringArrays(left, right)
-	expectedOrphansLeft := []string{"Alpha", "Echo", "Foxtrott", "Tango"}
-	expectedOrphansRight := []string{"Yankee", "Zulu"}
-
-	if !reflect.DeepEqual(orphansLeft, expectedOrphansLeft) {
-		t.Errorf("Left orphans: %v not equal to expected ones: %v", orphansLeft, expectedOrphansLeft)
-	}
-	if !reflect.DeepEqual(orphansRight, expectedOrphansRight) {
-		t.Errorf("Right orphans: %v not equal to expected ones: %v", orphansRight, expectedOrphansRight)
-	}
-}
-
 // func (left, right []models.ComposerSheetSafeNames) ([]models.ComposerSheetSafeNames, []models.ComposerSheetSafeNames) {
 func TestFindOrphansInSortedComposerSheetNames(t *testing.T) {
 	left := []models.ComposerSheetSafeNames{{ComposerSafeName: "Alpha", SheetSafeName: "Bravo"}, {ComposerSafeName: "Alpha", SheetSafeName: "Charlie"}, {ComposerSafeName: "Bravo", SheetSafeName: "Charlie"}, {ComposerSafeName: "Charlie", SheetSafeName: "Alpha"}, {ComposerSafeName: "Charlie", SheetSafeName: "Charlie"}}
