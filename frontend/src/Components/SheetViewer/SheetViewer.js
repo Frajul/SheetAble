@@ -138,6 +138,7 @@ function SheetViewer({
   };
 
   const [pdf, setpdf] = useState(undefined);
+  const [twoPageMode, setTwoPageMode] = useState(true);
 
   const bySheetPages = findSheetByPages(safeSheetName, sheetPages);
   const bySheets = findSheetBySheets(safeSheetName, sheets);
@@ -235,6 +236,10 @@ function SheetViewer({
 
   const [copyText, setCopyText] = useState("Click to Copy");
 
+  const handleModeSwitchButtonClick = () => {
+    setTwoPageMode(!twoPageMode)
+  };
+
   const handleClick = () => {
     navigator.clipboard.writeText(window.location.href).then(()=>{
       setCopyText("Copied ✓")
@@ -242,6 +247,24 @@ function SheetViewer({
       setCopyText("Click to Copy")
     });
   };
+
+
+  const handlePageClickSingle = (event) => {
+    const { nativeEvent } = event;
+    const { offsetX, offsetY, target } = nativeEvent;
+    const pageWidth = target.clientWidth;
+
+    const fullscreenTouchAreaHeight = 100;
+    if (offsetY < fullscreenTouchAreaHeight){
+      toggleFullscreen();
+    }
+    else if (offsetX < pageWidth / 2) {
+      changePageIfPossible(-1);
+    } else {
+      changePageIfPossible(1);
+    }
+  };
+
 
   const handlePageClickLeft = (event) => {
     const { nativeEvent } = event;
@@ -319,14 +342,43 @@ function SheetViewer({
                 file={pdf}
                 onLoadSuccess={onDocumentLoadSuccess}
               >
+
                 <div className="page-container">
-                  <Page pageNumber={pageNumber} scale={scaleLeft} onLoadSuccess={onPdfPageLoadSuccessLeft} onClick={(e) => handlePageClickLeft(e)}/>
-                  <Page pageNumber={pageNumber+1} scale={scaleRight} onLoadSuccess={onPdfPageLoadSuccessRight} onClick={(e) => handlePageClickRight(e)}/>
+                  {twoPageMode ? (
+                    <>
+                      <Page
+                        pageNumber={pageNumber}
+                        scale={scaleLeft}
+                        onLoadSuccess={onPdfPageLoadSuccessLeft}
+                        onClick={(e) => handlePageClickLeft(e)}
+                      />
+                      <Page
+                        pageNumber={pageNumber + 1}
+                        scale={scaleRight}
+                        onLoadSuccess={onPdfPageLoadSuccessRight}
+                        onClick={(e) => handlePageClickRight(e)}
+                      />
+                    </>
+                  ) : (
+                    <Page
+                      pageNumber={pageNumber}
+                      scale={scaleLeft}
+                      onLoadSuccess={onPdfPageLoadSuccessLeft}
+                      onClick={(e) => handlePageClickSingle(e)}
+                    />
+                  )}
                 </div>
               </Document>
             </div>
           </div>
         </div>
+        {!isFullscreen ?
+         <>
+           <button className="mode-switch-button" onClick={handleModeSwitchButtonClick}>
+             {twoPageMode ? "1 Page" : "2 Pages"}
+           </button>
+         </>
+         : null}
       </div>
     </Fragment>
   );
