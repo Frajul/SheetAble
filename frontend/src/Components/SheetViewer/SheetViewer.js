@@ -78,7 +78,6 @@ function SheetViewer({
   };
 
   useEffect(() => {
-
     updateDocumentSize(); // Update size on mount
 
     // Change Page Title
@@ -179,8 +178,13 @@ function SheetViewer({
           window.location.href = "/";
         }
       });
-    return pdf;
   };
+
+ useEffect(() => {
+    if (safeComposerName && safeSheetName && !pdf) {
+      pdfRequest();
+    }
+  }, [safeComposerName, safeSheetName, pdf]);
 
   const [numPages, setNumPages] = useState(null);
   const [pageNumber, setPageNumber] = useState(1);
@@ -301,11 +305,6 @@ function SheetViewer({
 
   const [editModal, setEditModal] = useState(false);
 
-  if (composer.portrait_url === undefined) {
-    window.location.replace("/");
-  }
-  const imgUrl = getCompImgUrl(composer.portrait_url);
-
   const scaleLeft = documentSize.height / pdfDimensionsLeft.height;
   const scaleRight = documentSize.height / pdfDimensionsRight.height;
 
@@ -317,7 +316,7 @@ function SheetViewer({
           <div className="doc_wrapper">
             <div className="noselect document" ref={documentRef}>
               <Document
-                file={pdf === undefined ? pdfRequest() : pdf}
+                file={pdf}
                 onLoadSuccess={onDocumentLoadSuccess}
               >
                 <div className="page-container">
