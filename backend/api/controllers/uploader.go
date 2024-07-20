@@ -134,6 +134,7 @@ func (server *Server) UpdateSheet(c *gin.Context) {
 
 }
 
+// TODO: this actually does much more than getting an url
 func getPortraitURL(composerName string) Comp {
 	resp, err := http.Get("https://api.openopus.org/composer/list/search/" + composerName + ".json")
 	if err != nil {
@@ -175,12 +176,18 @@ func getPortraitURL(composerName string) Comp {
 
 // Save sheet to database
 // TODO: rename function to make clear it is used in library sync
-func SafeComposer(server *Server, composer string) {
-	compo := getPortraitURL(composer)
+func SafeComposer(server *Server, originalNameAndComposer, safeNameAndComposer models.ComposerSheetSafeNames) {
+	if models.ExistsComposer(server.DB, safeNameAndComposer.ComposerSafeName) {
+		fmt.Printf("Composer %v already exists, not creating anew!\n", safeNameAndComposer.ComposerSafeName)
+		return
+	}
+	fmt.Printf("Adding composer %v to database!\n", safeNameAndComposer.ComposerSafeName)
+
+	compo := getPortraitURL(originalNameAndComposer.ComposerSafeName)
 
 	comp := models.Composer{
 		Name:        compo.CompleteName,
-		SafeName:    compo.CompleteName, // TODO: fix problem with safe name
+		SafeName:    compo.SafeName,
 		PortraitURL: compo.Portrait,
 		Epoch:       compo.Epoch,
 	}

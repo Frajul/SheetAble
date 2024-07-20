@@ -240,3 +240,13 @@ func CheckAndDeleteUnknownComposer(db *gorm.DB) {
 		db = db.Model(&Composer{}).Where("safe_name = ?", "unknown").Take(&Composer{}).Delete(&Composer{})
 	}
 }
+
+func ExistsComposer(db *gorm.DB, safeName string) bool {
+	/*
+		Method to check if the composer already exists
+	*/
+
+	err := db.First(&Composer{SafeName: safeName}).Error
+	// TODO: this returns true if database returns some unexpected error
+	return !errors.Is(err, gorm.ErrRecordNotFound)
+}

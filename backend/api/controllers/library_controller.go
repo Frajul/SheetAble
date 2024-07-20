@@ -47,6 +47,7 @@ func (server *Server) SyncSheets(libraryPath string) {
 			// TODO: this assumes file name is already "safe name", therefore make it so!
 			if sheet.IsSanitized() {
 				fmt.Printf("Saving sheet %v\n", sheet)
+				SafeComposer(server, sheet, sheet)
 				SafeSheet(server, sheet, sheet)
 			} else {
 				// Sanitizing file by renaming it
@@ -65,7 +66,8 @@ func (server *Server) SyncSheets(libraryPath string) {
 					log.Fatal(e)
 				}
 
-				fmt.Printf("Saving sanitized sheet %v\n", sheet)
+				fmt.Printf("Saving sanitized sheet and composer %v\n", sheet)
+				SafeComposer(server, sheet, sheet)
 				SafeSheet(server, sheet, sanitizedSheet)
 			}
 
