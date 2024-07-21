@@ -31,7 +31,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v4
         with:
-          images: vallezw/sheetable
+          images: frajul/sheetable
       -
         name: Login to DockerHub
         uses: docker/login-action@v2
