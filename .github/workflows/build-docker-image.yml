@@ -3,12 +3,12 @@ name: Build Docker Image
 on:
   push:
     branches:
-      - 'main'
+      - 'release-private'
     tags:
       - 'v*'
   pull_request:
     branches:
-      - 'main'
+      - 'release-private'
 
 jobs:
   docker:
