@@ -16,17 +16,17 @@ import (
 )
 
 /*
-	This endpoint will return all sheets in Page like style.
-	Meaning POST request will have 3 attributes:
-		- sort_by: (how is it sorted)
-		- page: (what page)
-		- limit: (limit number)
-		- composer: (what composer)
+This endpoint will return all sheets in Page like style.
+Meaning POST request will have 3 attributes:
+  - sort_by: (how is it sorted)
+  - page: (what page)
+  - limit: (limit number)
+  - composer: (what composer)
 
-	Return:
-		- sheets: [...]
-		- page_max: [7] // How many pages there are
-		- page_current: [1] // Which page is currently selected
+Return:
+  - sheets: [...]
+  - page_max: [7] // How many pages there are
+  - page_current: [1] // Which page is currently selected
 */
 func (server *Server) GetSheetsPage(c *gin.Context) {
 	var form forms.GetSheetsPageRequest
@@ -50,11 +50,13 @@ func (server *Server) GetSheetsPage(c *gin.Context) {
 	c.JSON(http.StatusOK, pageNew)
 }
 
-/*	
-	Get PDF file and information about an individual sheet.
-	Example request:
-		GET /sheet/Étude N. 1
-	Has to be safeName
+/*
+Get PDF file and information about an individual sheet.
+Example request:
+
+	GET /sheet/Étude N. 1
+
+Has to be safeName
 */
 func (server *Server) GetSheet(c *gin.Context) {
 	sheetName := c.Param("sheetName")
@@ -73,10 +75,12 @@ func (server *Server) GetSheet(c *gin.Context) {
 }
 
 /*
-	Serve the PDF file
-	Example request:
-		GET /sheet/pdf/Frédéric Chopin/Étude N. 1
-	sheetname and composer name have to be the safeName of them
+Serve the PDF file
+Example request:
+
+	GET /sheet/pdf/Frédéric Chopin/Étude N. 1
+
+sheetname and composer name have to be the safeName of them
 */
 func (server *Server) GetPDF(c *gin.Context) {
 	sheetName := c.Param("sheetName") + ".pdf"
@@ -86,15 +90,14 @@ func (server *Server) GetPDF(c *gin.Context) {
 }
 
 /*
-	Serve the thumbnail file
-	name = safename of sheet
+Serve the thumbnail file
+name = safename of sheet
 */
 func (server *Server) GetThumbnail(c *gin.Context) {
-	name := c.Param("name") + ".png"
+	name := c.Param("name") + ".jpg"
 	filePath := path.Join(Config().ConfigPath, "sheets/thumbnails", name)
 	c.File(filePath)
 }
-
 
 // Has to be safeName of the sheet
 func (server *Server) DeleteSheet(c *gin.Context) {
@@ -229,7 +232,7 @@ func (server *Server) UpdateSheetInformationText(c *gin.Context) {
 }
 
 func getSheet(db *gorm.DB, c *gin.Context) *models.Sheet {
-	
+
 	// Find a sheet by its name
 	sheetName := c.Param("sheetName")
 	if sheetName == "" {

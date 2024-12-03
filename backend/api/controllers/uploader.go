@@ -101,12 +101,11 @@ func (server *Server) UploadFile(c *gin.Context) {
 		return
 	}
 
-	// Send POST request to python server for creating the thumbnail (first page of pdf as an image)
-	if !utils.RequestToPdfToImage(fullpath, models.SanitizeName(sheetName)) {
+	err = utils.CreateThumbnailFromPdf(fullpath, models.SanitizeName(sheetName))
+	if err != nil {
+		c.String(http.StatusInternalServerError, err.Error())
 		return
 	}
-
-	// Return that we have successfully uploaded our file!
 	c.JSON(http.StatusAccepted, "File uploaded successfully")
 }
 
