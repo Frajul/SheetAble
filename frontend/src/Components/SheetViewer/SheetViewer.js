@@ -62,8 +62,14 @@ function SheetViewer({
   const [isDesktop, setDesktop] = useState(window.innerHeight > windowHeight);
   const documentRef = useRef(null);
   const [documentSize, setDocumentSize] = useState({ width: 0, height: 0 });
-  const [pdfDimensionsLeft, setPdfDimensionsLeft] = useState({ width: 0, height: 0 });
-  const [pdfDimensionsRight, setPdfDimensionsRight] = useState({ width: 0, height: 0 });
+  const [pdfDimensionsLeft, setPdfDimensionsLeft] = useState({
+    width: 0,
+    height: 0,
+  });
+  const [pdfDimensionsRight, setPdfDimensionsRight] = useState({
+    width: 0,
+    height: 0,
+  });
   const [isFullscreen, setIsFullscreen] = useState(false);
 
   const updateMedia = () => {
@@ -76,23 +82,6 @@ function SheetViewer({
       setDocumentSize({ width: clientWidth, height: clientHeight });
     }
   };
-
-  useEffect(() => {
-    updateDocumentSize(); // Update size on mount
-
-    // Change Page Title
-    document.title = `SheetAble - ${
-      sheet.sheet_name === undefined ? "Sheet" : sheet.sheet_name
-    }`;
-
-    window.addEventListener("resize", updateDocumentSize);
-    window.addEventListener("resize", updateMedia);
-
-    return () => {
-      window.removeEventListener("resize", updateDocumentSize);
-      window.removeEventListener("resize", updateMedia);
-    };
-  });
 
   let { safeSheetName, safeComposerName } = useParams();
 
@@ -137,7 +126,8 @@ function SheetViewer({
     }
   };
 
-  const [pdf, setpdf] = useState(undefined);
+  const [pdfLoading, setPdfLoading] = useState(false);
+  const [pdf, setPdf] = useState(undefined);
   const [twoPageMode, setTwoPageMode] = useState(true);
 
   const bySheetPages = findSheetByPages(safeSheetName, sheetPages);
@@ -163,12 +153,13 @@ function SheetViewer({
   );
 
   const pdfRequest = () => {
+    console.log("Pdf request");
     axios
       .get(`/sheet/pdf/${safeComposerName}/${safeSheetName}`, {
         responseType: "arraybuffer",
       })
       .then((res) => {
-        setpdf(res);
+        setPdf(res);
       })
       .catch((err) => {
         if (err.request.status === 401) {
@@ -181,12 +172,6 @@ function SheetViewer({
       });
   };
 
- useEffect(() => {
-    if (safeComposerName && safeSheetName && !pdf) {
-      pdfRequest();
-    }
-  }, [safeComposerName, safeSheetName, pdf]);
-
   const [numPages, setNumPages] = useState(null);
   const [pageNumber, setPageNumber] = useState(1);
 
@@ -196,23 +181,21 @@ function SheetViewer({
   }
 
   function onPdfPageLoadSuccessLeft(page) {
-      const { width, height } = page.getViewport({ scale: 1 });
-      setPdfDimensionsLeft({ width, height });
+    const { width, height } = page.getViewport({ scale: 1 });
+    setPdfDimensionsLeft({ width, height });
   }
 
   function onPdfPageLoadSuccessRight(page) {
-      const { width, height } = page.getViewport({ scale: 1 });
-      setPdfDimensionsRight({ width, height });
+    const { width, height } = page.getViewport({ scale: 1 });
+    setPdfDimensionsRight({ width, height });
   }
 
   function changePageIfPossible(offset) {
     if (pageNumber + offset <= 0) {
       offset = 1 - pageNumber;
-    }
-    else if (offset == 2 && pageNumber == numPages -1) {
+    } else if (offset == 2 && pageNumber == numPages - 1) {
       return; // Do not allow to page advance when right page is last page
-    }
-    else if (pageNumber + offset > numPages) {
+    } else if (pageNumber + offset > numPages) {
       offset = numPages - pageNumber;
     }
     setPageNumber((prevPageNumber) => prevPageNumber + offset);
@@ -237,17 +220,19 @@ function SheetViewer({
   const [copyText, setCopyText] = useState("Click to Copy");
 
   const handleModeSwitchButtonClick = () => {
-    setTwoPageMode(!twoPageMode)
+    setTwoPageMode(!twoPageMode);
   };
 
   const handleClick = () => {
-    navigator.clipboard.writeText(window.location.href).then(()=>{
-      setCopyText("Copied ✓")
-    }).catch(()=>{
-      setCopyText("Click to Copy")
-    });
+    navigator.clipboard
+      .writeText(window.location.href)
+      .then(() => {
+        setCopyText("Copied ✓");
+      })
+      .catch(() => {
+        setCopyText("Click to Copy");
+      });
   };
-
 
   const handlePageClickSingle = (event) => {
     const { nativeEvent } = event;
@@ -255,16 +240,14 @@ function SheetViewer({
     const pageWidth = target.clientWidth;
 
     const fullscreenTouchAreaHeight = 100;
-    if (offsetY < fullscreenTouchAreaHeight){
+    if (offsetY < fullscreenTouchAreaHeight) {
       toggleFullscreen();
-    }
-    else if (offsetX < pageWidth / 2) {
+    } else if (offsetX < pageWidth / 2) {
       changePageIfPossible(-1);
     } else {
       changePageIfPossible(1);
     }
   };
-
 
   const handlePageClickLeft = (event) => {
     const { nativeEvent } = event;
@@ -272,10 +255,9 @@ function SheetViewer({
     const pageWidth = target.clientWidth;
 
     const fullscreenTouchAreaHeight = 100;
-    if (offsetY < fullscreenTouchAreaHeight){
+    if (offsetY < fullscreenTouchAreaHeight) {
       toggleFullscreen();
-    }
-    else if (offsetX < pageWidth / 2) {
+    } else if (offsetX < pageWidth / 2) {
       changePageIfPossible(-2);
     } else {
       changePageIfPossible(-1);
@@ -288,10 +270,9 @@ function SheetViewer({
     const pageWidth = target.clientWidth;
 
     const fullscreenTouchAreaHeight = 100;
-    if (offsetY < fullscreenTouchAreaHeight){
+    if (offsetY < fullscreenTouchAreaHeight) {
       toggleFullscreen();
-    }
-    else if (offsetX < pageWidth / 2) {
+    } else if (offsetX < pageWidth / 2) {
       changePageIfPossible(1);
     } else {
       changePageIfPossible(2);
@@ -304,27 +285,55 @@ function SheetViewer({
     if (!document.fullscreenElement) {
       if (elem.requestFullscreen) {
         elem.requestFullscreen();
-      } else if (elem.mozRequestFullScreen) { // Firefox
+      } else if (elem.mozRequestFullScreen) {
+        // Firefox
         elem.mozRequestFullScreen();
-      } else if (elem.webkitRequestFullscreen) { // Chrome, Safari, and Opera
+      } else if (elem.webkitRequestFullscreen) {
+        // Chrome, Safari, and Opera
         elem.webkitRequestFullscreen();
-      } else if (elem.msRequestFullscreen) { // IE/Edge
+      } else if (elem.msRequestFullscreen) {
+        // IE/Edge
         elem.msRequestFullscreen();
       }
       setIsFullscreen(true);
     } else {
       if (document.exitFullscreen) {
         document.exitFullscreen();
-      } else if (document.mozCancelFullScreen) { // Firefox
+      } else if (document.mozCancelFullScreen) {
+        // Firefox
         document.mozCancelFullScreen();
-      } else if (document.webkitExitFullscreen) { // Chrome, Safari, and Opera
+      } else if (document.webkitExitFullscreen) {
+        // Chrome, Safari, and Opera
         document.webkitExitFullscreen();
-      } else if (document.msExitFullscreen) { // IE/Edge
+      } else if (document.msExitFullscreen) {
+        // IE/Edge
         document.msExitFullscreen();
       }
       setIsFullscreen(false);
     }
   };
+
+  useEffect(() => {
+    updateDocumentSize(); // Update size on mount
+
+    // Change Page Title
+    document.title = `SheetAble - ${
+      sheet.sheet_name === undefined ? "Sheet" : sheet.sheet_name
+    }`;
+
+    window.addEventListener("resize", updateDocumentSize);
+    window.addEventListener("resize", updateMedia);
+
+    if (safeComposerName && safeSheetName && !pdfLoading) {
+      setPdfLoading(true);
+      pdfRequest();
+    }
+
+    return () => {
+      window.removeEventListener("resize", updateDocumentSize);
+      window.removeEventListener("resize", updateMedia);
+    };
+  }, [pdf, pdfLoading]);
 
   const [editModal, setEditModal] = useState(false);
 
@@ -338,11 +347,7 @@ function SheetViewer({
         <div className="document_container">
           <div className="doc_wrapper">
             <div className="noselect document" ref={documentRef}>
-              <Document
-                file={pdf}
-                onLoadSuccess={onDocumentLoadSuccess}
-              >
-
+              <Document file={pdf} onLoadSuccess={onDocumentLoadSuccess}>
                 <div className="page-container">
                   {twoPageMode ? (
                     <>
@@ -372,13 +377,16 @@ function SheetViewer({
             </div>
           </div>
         </div>
-        {!isFullscreen ?
-         <>
-           <button className="mode-switch-button" onClick={handleModeSwitchButtonClick}>
-             {twoPageMode ? "1 Page" : "2 Pages"}
-           </button>
-         </>
-         : null}
+        {!isFullscreen ? (
+          <>
+            <button
+              className="mode-switch-button"
+              onClick={handleModeSwitchButtonClick}
+            >
+              {twoPageMode ? "1 Page" : "2 Pages"}
+            </button>
+          </>
+        ) : null}
       </div>
     </Fragment>
   );
