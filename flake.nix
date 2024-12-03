@@ -31,7 +31,7 @@
           pname = "backend";
           version = "v0.8.1";
           src = ./backend;
-          vendorHash = "sha256-aoISfI0nzeifEx0D3EaWQG/A27CApLl/KCoOlviC5Ng=";
+          vendorHash = "sha256-6flC+9pTp6cZxFEA7CL704hpL6Ajh63Kg/Fq4XpfFdg=";
         };
         apps.frontend = {
           type = "app";
@@ -50,6 +50,9 @@
             go-rice
             nodejs_20
             nodePackages.serve
+
+            pkg-config
+            vips
           ];
 
           # shellHook = ''
