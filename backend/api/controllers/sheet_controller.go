@@ -6,13 +6,11 @@ import (
 	"net/http"
 	"path"
 
-	"github.com/SheetAble/SheetAble/backend/api/auth"
 	. "github.com/SheetAble/SheetAble/backend/api/config"
 	"github.com/SheetAble/SheetAble/backend/api/forms"
 	"github.com/SheetAble/SheetAble/backend/api/models"
 	"github.com/SheetAble/SheetAble/backend/api/utils"
 	"github.com/gin-gonic/gin"
-	"github.com/jinzhu/gorm"
 )
 
 /*
@@ -41,8 +39,7 @@ func (server *Server) GetSheetsPage(c *gin.Context) {
 		Page:  form.Page,
 	}
 
-	var sheet models.Sheet
-	pageNew, err := sheet.List(server.DB, pagination, form.Composer)
+	pageNew, err := models.ListSheets(server.DB, pagination, form.Composer)
 	if err != nil {
 		utils.DoError(c, http.StatusInternalServerError, err)
 		return
@@ -55,20 +52,17 @@ Get PDF file and information about an individual sheet.
 Example request:
 
 	GET /sheet/Étude N. 1
-
-Has to be safeName
 */
 func (server *Server) GetSheet(c *gin.Context) {
-	sheetName := c.Param("sheetName")
-	if sheetName == "" {
-		utils.DoError(c, http.StatusBadRequest, errors.New("missing URL parameter 'sheetName'"))
+	sheetUuid := c.Param("sheetUuid")
+	if sheetUuid == "" {
+		utils.DoError(c, http.StatusBadRequest, errors.New("no sheet uuid given"))
 		return
 	}
 
-	var sheetModel models.Sheet
-	sheet, err := sheetModel.FindSheetBySafeName(server.DB, sheetName)
+	sheet, err := models.FindSheetByUuid(server.DB, sheetUuid)
 	if err != nil {
-		utils.DoError(c, http.StatusInternalServerError, fmt.Errorf("unable to get sheet %s: %s", sheetName, err.Error()))
+		utils.DoError(c, http.StatusInternalServerError, fmt.Errorf("unable to get sheet: %v", err.Error()))
 		return
 	}
 	c.JSON(http.StatusOK, sheet)
@@ -83,43 +77,50 @@ Example request:
 sheetname and composer name have to be the safeName of them
 */
 func (server *Server) GetPDF(c *gin.Context) {
-	sheetName := c.Param("sheetName") + ".pdf"
-	composer := c.Param("composer")
-	filePath := path.Join(Config().ConfigPath, "sheets/uploaded-sheets", composer, sheetName)
-	c.File(filePath)
-}
+	sheetUuid := c.Param("sheetUuid")
+	if sheetUuid == "" {
+		utils.DoError(c, http.StatusBadRequest, errors.New("no sheet uuid given"))
+		return
+	}
 
-/*
-Serve the thumbnail file
-name = safename of sheet
-*/
-func (server *Server) GetThumbnail(c *gin.Context) {
-	name := c.Param("name") + ".jpg"
-	filePath := path.Join(Config().ConfigPath, "sheets/thumbnails", name)
-	c.File(filePath)
-}
-
-// Has to be safeName of the sheet
-func (server *Server) DeleteSheet(c *gin.Context) {
-	sheetName := c.Param("sheetName")
-
-	// Is this user authenticated?
-	token := utils.ExtractToken(c)
-	_, err := auth.ExtractTokenID(token, Config().ApiSecret)
+	sheet, err := models.FindSheetByUuid(server.DB, sheetUuid)
 	if err != nil {
-		c.String(http.StatusUnauthorized, "Unauthorized")
+		utils.DoError(c, http.StatusInternalServerError, fmt.Errorf("unable to get sheet: %v", err.Error()))
+		return
+	}
+	filePath := path.Join(Config().ConfigPath, "sheets", sheet.File)
+	c.File(filePath)
+}
+
+func (server *Server) GetThumbnail(c *gin.Context) {
+	sheetUuid := c.Param("sheetUuid")
+	if sheetUuid == "" {
+		utils.DoError(c, http.StatusBadRequest, errors.New("no sheet uuid given"))
+		return
+	}
+	filePath := path.Join(Config().ConfigPath, "sheets/thumbnails", sheetUuid)
+	c.File(filePath)
+}
+
+func (server *Server) DeleteSheet(c *gin.Context) {
+	sheetUuid := c.Param("sheetUuid")
+	if sheetUuid == "" {
+		utils.DoError(c, http.StatusBadRequest, errors.New("no sheet uuid given"))
 		return
 	}
 
 	// Check if the sheet exist
-	sheet := models.Sheet{}
-	err = server.DB.Model(models.Sheet{}).Where("safe_sheet_name = ?", sheetName).Take(&sheet).Error
+	sheetExists, err := models.ExistsSheet(server.DB, sheetUuid)
 	if err != nil {
+		utils.DoError(c, http.StatusInternalServerError, fmt.Errorf("unable to find sheet: %v", err.Error()))
+		return
+	}
+	if !sheetExists {
 		c.String(http.StatusNotFound, "sheet not found")
 		return
 	}
 
-	_, err = sheet.DeleteSheet(server.DB, sheetName)
+	err = models.DeleteSheet(server.DB, sheetUuid)
 	if err != nil {
 		c.String(http.StatusBadRequest, err.Error())
 		return
@@ -135,8 +136,15 @@ func (server *Server) DeleteTag(c *gin.Context) {
 		DELETE /api/tag/sheet/fuer-elise
 	*/
 
-	sheet := getSheet(server.DB, c)
-	if sheet == nil {
+	sheetUuid := c.Param("sheetUuid")
+	if sheetUuid == "" {
+		utils.DoError(c, http.StatusBadRequest, errors.New("no sheet uuid given"))
+		return
+	}
+
+	sheet, err := models.FindSheetByUuid(server.DB, sheetUuid)
+	if err != nil {
+		utils.DoError(c, http.StatusInternalServerError, fmt.Errorf("unable to get sheet: %v", err.Error()))
 		return
 	}
 
@@ -146,9 +154,9 @@ func (server *Server) DeleteTag(c *gin.Context) {
 		return
 	}
 
-	tagNotFound := sheet.DelteTag(server.DB, updateTagForm.TagValue)
-	if !tagNotFound {
-		utils.DoError(c, http.StatusNotFound, fmt.Errorf("unable to find tag: %s", updateTagForm.TagValue))
+	err = sheet.DeleteTag(server.DB, updateTagForm.TagValue)
+	if err != nil {
+		utils.DoError(c, http.StatusNotFound, fmt.Errorf("unable to find tag: %v", err))
 		return
 	}
 
@@ -164,8 +172,15 @@ func (server *Server) AppendTag(c *gin.Context) {
 			- tagValue: New Tag
 	*/
 
-	sheet := getSheet(server.DB, c)
-	if sheet == nil {
+	sheetUuid := c.Param("sheetUuid")
+	if sheetUuid == "" {
+		utils.DoError(c, http.StatusBadRequest, errors.New("no sheet uuid given"))
+		return
+	}
+
+	sheet, err := models.FindSheetByUuid(server.DB, sheetUuid)
+	if err != nil {
+		utils.DoError(c, http.StatusInternalServerError, fmt.Errorf("unable to get sheet: %v", err.Error()))
 		return
 	}
 
@@ -196,7 +211,11 @@ func (server *Server) FindSheetsByTag(c *gin.Context) {
 		return
 	}
 
-	sheets := models.FindSheetByTag(server.DB, tagForm.TagValue)
+	sheets, err := models.FindSheetByTag(server.DB, tagForm.TagValue)
+	if err != nil {
+		utils.DoError(c, http.StatusInternalServerError, fmt.Errorf("unable to get sheet: %v", err.Error()))
+		return
+	}
 
 	c.JSON(http.StatusOK, sheets)
 
@@ -211,8 +230,15 @@ func (server *Server) UpdateSheetInformationText(c *gin.Context) {
 			- informationText: This is Für Elise made by Beethoven
 	*/
 
-	sheet := getSheet(server.DB, c)
-	if sheet == nil {
+	sheetUuid := c.Param("sheetUuid")
+	if sheetUuid == "" {
+		utils.DoError(c, http.StatusBadRequest, errors.New("no sheet uuid given"))
+		return
+	}
+
+	sheet, err := models.FindSheetByUuid(server.DB, sheetUuid)
+	if err != nil {
+		utils.DoError(c, http.StatusInternalServerError, fmt.Errorf("unable to get sheet: %v", err.Error()))
 		return
 	}
 
@@ -226,37 +252,11 @@ func (server *Server) UpdateSheetInformationText(c *gin.Context) {
 		return
 	}
 
-	newSheet := sheet.UpdateSheetInformationText(server.DB, informationForm.InformationText, sheet)
-
-	c.JSON(http.StatusOK, newSheet)
-}
-
-func getSheet(db *gorm.DB, c *gin.Context) *models.Sheet {
-
-	// Find a sheet by its name
-	sheetName := c.Param("sheetName")
-	if sheetName == "" {
-		utils.DoError(c, http.StatusBadRequest, errors.New("missing URL parameter 'sheetName'"))
-		return nil
-	}
-
-	var sheetModel models.Sheet
-	sheet, err := sheetModel.FindSheetBySafeName(db, sheetName)
+	err = sheet.UpdateSheetInformationText(server.DB, informationForm.InformationText)
 	if err != nil {
-		utils.DoError(c, http.StatusInternalServerError, fmt.Errorf("unable to get sheet %s: %s", sheetName, err.Error()))
-		return nil
+		utils.DoError(c, http.StatusInternalServerError, fmt.Errorf("unable to update sheet: %v", err.Error()))
+		return
 	}
 
-	return sheet
-}
-
-func existsUuid(db *gorm.DB, uuid string) bool {
-	err := db.Model(models.Sheet{}).First("uuid = ?", uuid).Error
-	if err != nil {
-		if err == gorm.ErrRecordNotFound {
-			return false
-		}
-		return false // TODO: error handling
-	}
-	return true
+	c.JSON(http.StatusOK, sheet)
 }

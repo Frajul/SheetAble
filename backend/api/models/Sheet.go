@@ -2,7 +2,6 @@ package models
 
 import (
 	"errors"
-	"log"
 	"os"
 	"path"
 	"strings"
@@ -10,61 +9,19 @@ import (
 
 	. "github.com/SheetAble/SheetAble/backend/api/config"
 	"github.com/SheetAble/SheetAble/backend/api/utils"
-	"github.com/fiam/gounidecode/unidecode"
-	"github.com/kennygrant/sanitize"
 	"github.com/lib/pq"
 
 	"github.com/jinzhu/gorm"
 )
 
-type ComposerSheetSafeNames struct {
-	ComposerSafeName string `json:"safe_composer"`
-	SheetSafeName    string `gorm:"primary_key" json:"safe_sheet_name"`
-}
-
-func (sheet *ComposerSheetSafeNames) SheetPath() string {
-	return path.Join(sheet.ComposerDirPath(), sheet.SheetSafeName+".pdf")
-}
-
-func (sheet *ComposerSheetSafeNames) ComposerDirPath() string {
-	return path.Join(Config().ConfigPath, "sheets/uploaded-sheets", sheet.ComposerSafeName)
-}
-
-func (sheet *ComposerSheetSafeNames) Sanitize() {
-	sheet.ComposerSafeName = SanitizeName(sheet.ComposerSafeName)
-	sheet.SheetSafeName = SanitizeName(sheet.SheetSafeName)
-}
-
-func (sheet *ComposerSheetSafeNames) IsSanitized() bool {
-	return sheet.ComposerSafeName == SanitizeName(sheet.ComposerSafeName) && sheet.SheetSafeName == SanitizeName(sheet.SheetSafeName)
-}
-
-func CompareComposerSheetSafeNames(left, right ComposerSheetSafeNames) int {
-	if left.ComposerSafeName == right.ComposerSafeName {
-		if left.SheetSafeName == right.SheetSafeName {
-			return 0
-		} else if left.SheetSafeName < right.SheetSafeName {
-			return -1
-		} else {
-			return 1
-		}
-	} else {
-		if left.ComposerSafeName < right.ComposerSafeName {
-			return -1
-		} else {
-			return 1
-		}
-	}
-}
-
 type Sheet struct {
-	Uuid            string `gorm:"primary_key"`
-	SafeSheetName   string `json:"safe_sheet_name"`
-	SheetName       string `json:"sheet_name"`
-	SafeComposer    string `json:"safe_composer"`
-	Composer        string `json:"composer"`
-	ReleaseDate     time.Time
-	PdfUrl          string         `json:"pdf_url"`
+	Uuid            string         `gorm:"primary_key"`
+	Name            string         `json:"sheet_name"`
+	ComposerUuid    string         `json:"composer_uuid"`
+	ReleaseDate     time.Time      `json:"release_date"`
+	File            string         `json:"file"`
+	FileHash        string         `json:"file_hash"`
+	WasUploaded     bool           `json:"was_uploaded"`
 	UploaderID      uint32         `gorm:"not null" json:"uploader_id"`
 	CreatedAt       time.Time      `gorm:"default:CURRENT_TIMESTAMP" json:"created_at"`
 	UpdatedAt       time.Time      `gorm:"default:CURRENT_TIMESTAMP" json:"updated_at"`
@@ -72,63 +29,114 @@ type Sheet struct {
 	InformationText string         `json:"information_text"`
 }
 
-func (s *Sheet) Prepare() {
-	s.SheetName = strings.TrimSpace(s.SheetName)
-	s.Composer = strings.TrimSpace(s.Composer)
-	s.SafeComposer = strings.TrimSpace(s.SafeComposer)
-	s.SafeSheetName = strings.TrimSpace(s.SafeSheetName)
-	s.CreatedAt = time.Now()
-	s.UpdatedAt = time.Now()
-	s.PdfUrl = "sheet/pdf/" + s.SafeComposer + "/" + s.SafeSheetName
-	s.Tags = pq.StringArray{}
-}
-
-func (s *Sheet) SaveSheet(db *gorm.DB) (*Sheet, error) {
-	err := db.Model(&Sheet{}).Create(&s).Error
-	if err != nil {
-		return &Sheet{}, err
+func NewSheet(uuid string, name string, composerUuid string, file string, wasUploaded bool) *Sheet {
+	return &Sheet{
+		Uuid:            strings.TrimSpace(uuid),
+		Name:            strings.TrimSpace(name),
+		ComposerUuid:    strings.TrimSpace(composerUuid),
+		File:            strings.TrimSpace(file),
+		WasUploaded:     wasUploaded,
+		CreatedAt:       time.Now(),
+		UpdatedAt:       time.Now(),
+		Tags:            pq.StringArray{},
+		ReleaseDate:     createDate("1999-12-31"),
+		InformationText: "",
 	}
-	return s, nil
 }
 
-// TODO: this function does not take composer. That leads to problems when there are sheets with the same name from different composers
-func (s *Sheet) DeleteSheet(db *gorm.DB, sheetName string) (int64, error) {
-	sheet, err := s.FindSheetBySafeName(db, sheetName)
+func createDate(date string) time.Time {
+	// Create a usable date
+	const layoutISO = "2006-01-02"
+	t, _ := time.Parse(layoutISO, date)
+	return t
+}
+
+func (sheet *Sheet) SaveToDb(db *gorm.DB) error {
+	exists, err := ExistsSheet(db, sheet.Uuid)
 	if err != nil {
-		if gorm.IsRecordNotFoundError(err) {
-			return 0, errors.New("Sheet not found")
+		return err
+	}
+	if exists {
+		return errors.New("Sheet with this uuid already exists")
+	}
+	db.Save(&sheet)
+	return db.Error
+}
+
+func (sheet *Sheet) UpdateAtDb(db *gorm.DB) error {
+	db.Save(&sheet)
+	return db.Error
+}
+
+func DeleteSheet(db *gorm.DB, uuid string) error {
+	var sheet Sheet
+	if sheet.WasUploaded {
+		return errors.New("Sheet was not uploaded, please delete it by removing the file")
+	}
+	db.Where("uuid = ?", uuid).Delete(&sheet)
+
+	if db.Error != nil {
+		if gorm.IsRecordNotFoundError(db.Error) {
+			return errors.New("Sheet not found")
 		}
-		return 0, err
+		return db.Error
 	}
 
+	// Delete sheet file and thumbnail
 	paths := []string{
-		path.Join(Config().ConfigPath, "sheets/uploaded-sheets", sheet.SafeComposer, sheet.SafeSheetName+".pdf"),
-		path.Join(Config().ConfigPath, "sheets/thumbnails", sheet.SafeSheetName+".png"),
+		path.Join(Config().ConfigPath, "sheets", sheet.File),
+		path.Join(Config().ConfigPath, "sheets/thumbnails", sheet.Uuid+".png"),
 	}
 
 	for _, path := range paths {
 		e := os.Remove(path)
 		if e != nil {
-			log.Fatal(e)
+			return e
 		}
 	}
 
-	if sheet.SafeComposer == "unknown" {
-		CheckAndDeleteUnknownComposer(db)
-	}
-
-	db = db.Model(&Sheet{}).Where("safe_sheet_name = ?", sheetName).Take(&Sheet{}).Delete(&Sheet{})
-
-	if db.Error != nil {
-		if gorm.IsRecordNotFoundError(db.Error) {
-			return 0, errors.New("Sheet not found")
+	// Delete unknown composer if not referenced anymore
+	if sheet.ComposerUuid == "" {
+		isUnreferenced, err := IsComposerUnreferenced(db, sheet.ComposerUuid)
+		if err != nil {
+			return err
 		}
-		return 0, db.Error
+		if isUnreferenced {
+			DeleteComposer(db, sheet.ComposerUuid)
+		}
 	}
-	return db.RowsAffected, nil
+
+	return nil
 }
 
-func (s *Sheet) GetAllSheets(db *gorm.DB) (*[]Sheet, error) {
+func SearchSheets(db *gorm.DB, searchValue string) ([]*Sheet, error) {
+	var sheets []*Sheet
+	searchValue = "%" + searchValue + "%"
+	db.Where("name LIKE ?", searchValue).Find(&sheets)
+	return sheets, db.Error
+}
+
+func ExistsSheet(db *gorm.DB, uuid string) (bool, error) {
+	_, err := FindSheetByUuid(db, uuid)
+	if err == nil {
+		return true, nil
+	}
+	if gorm.IsRecordNotFoundError(err) {
+		return false, nil
+	}
+	return false, err
+}
+
+func FindSheetByUuid(db *gorm.DB, uuid string) (*Sheet, error) {
+	var sheet Sheet
+	db.First(&sheet, "uuid = ?", uuid)
+	if db.Error != nil {
+		return &Sheet{}, db.Error
+	}
+	return &sheet, nil
+}
+
+func GetAllSheets(db *gorm.DB) (*[]Sheet, error) {
 	/*
 		This method will return max 20 sheets, to find more or specific one you need to specify it.
 		Currently it sorts it by the newest updates
@@ -144,105 +152,64 @@ func (s *Sheet) GetAllSheets(db *gorm.DB) (*[]Sheet, error) {
 	return &sheets, err
 }
 
-func (s *Sheet) FindSheetBySafeName(db *gorm.DB, sheetName string) (*Sheet, error) {
-
-	// Get information of one single sheet by the safe sheet name
-	var err error
-	err = db.Model(&Sheet{}).Where("safe_sheet_name = ?", sheetName).Take(&s).Error
-
-	if err != nil {
-		return &Sheet{}, err
-	}
-	return s, nil
-
-}
-
-func (s *Sheet) List(db *gorm.DB, pagination Pagination, composer string) (*Pagination, error) {
-
-	// For pagination
-
+func ListSheets(db *gorm.DB, pagination Pagination, composerUuid string) (*Pagination, error) {
 	var sheets []*Sheet
-	if composer != "" {
-		db.Scopes(ComposerEqual(composer), paginate(sheets, &pagination, db)).Find(&sheets)
+	if composerUuid != "" {
+		db.Scopes(composerEqual(composerUuid), paginate(sheets, &pagination, db)).Find(&sheets)
 	} else {
 		db.Scopes(paginate(sheets, &pagination, db)).Find(&sheets)
 	}
-
+	if db.Error != nil {
+		return &Pagination{}, nil
+	}
 	pagination.Rows = sheets
 
 	return &pagination, nil
 }
 
-func ListAllSafeSheetNamesAndComposers(db *gorm.DB) []ComposerSheetSafeNames {
-	var sheetNames []ComposerSheetSafeNames
-	// TODO: use smart select
-	// db.Model(&Sheet{}).Find(&sheets)
-
-	var sheets []Sheet
-	db.Find(&sheets)
-
-	for _, sheet := range sheets {
-		sheetNames = append(sheetNames, ComposerSheetSafeNames{ComposerSafeName: sheet.SafeComposer, SheetSafeName: sheet.SafeSheetName})
-	}
-
-	return sheetNames
-}
-
-func SearchSheet(db *gorm.DB, searchValue string) []*Sheet {
-
-	// Search for sheets with containing string
-	var sheets []*Sheet
-	searchValue = "%" + searchValue + "%"
-	db.Where("sheet_name LIKE ?", searchValue).Find(&sheets)
-	return sheets
-}
-
-func ComposerEqual(composer string) func(db *gorm.DB) *gorm.DB {
-
+func composerEqual(composerUuid string) func(db *gorm.DB) *gorm.DB {
 	// Scope that composer is equal to composer (if you only want sheets from a certain composer)
 	return func(db *gorm.DB) *gorm.DB {
-		return db.Where("safe_composer = ?", composer)
+		return db.Where("composer_uuid = ?", composerUuid)
 	}
 }
 
-func (s *Sheet) AppendTag(db *gorm.DB, appendTag string) {
-
-	// Append a new tag to a sheet
-	newArray := append(s.Tags, appendTag)
+func (s *Sheet) AppendTag(db *gorm.DB, tag string) error {
+	newArray := append(s.Tags, tag)
 
 	db.Model(&s).Update(Sheet{Tags: newArray})
+	return db.Error
 }
 
-// TODO: rename to DeleteTag
-func (s *Sheet) DelteTag(db *gorm.DB, value string) bool {
-
+func (s *Sheet) DeleteTag(db *gorm.DB, tag string) error {
 	// Deleting a tag by it's value
-	index := utils.FindIndexByValue(s.Tags, value)
+	index := utils.FindIndexByValue(s.Tags, tag)
 
 	if index == -1 {
-		return false
+		return errors.New("Given tag was not in tag list")
 	}
 
 	newArray := pq.StringArray(utils.RemoveElementOfSlice(s.Tags, index))
-
 	db.Model(&s).Update(Sheet{Tags: newArray})
 
-	return true
+	return db.Error
 }
 
-func (S *Sheet) UpdateSheetInformationText(db *gorm.DB, value string, sheet *Sheet) *Sheet {
-	sheet.InformationText = value
-	db.Save(sheet)
-
-	return sheet
+func (s *Sheet) UpdateSheetInformationText(db *gorm.DB, value string) error {
+	s.InformationText = value
+	db.Save(s)
+	return db.Error
 }
 
-func FindSheetByTag(db *gorm.DB, tag string) []*Sheet {
-
+func FindSheetByTag(db *gorm.DB, tag string) ([]*Sheet, error) {
 	var allSheets []*Sheet
 	var affectedSheets []*Sheet
 
+	// TODO: improve by using db native search
 	db.Find(&allSheets)
+	if db.Error != nil {
+		return affectedSheets, db.Error
+	}
 
 	for _, sheet := range allSheets {
 		if utils.CheckSliceContains(sheet.Tags, tag) {
@@ -250,9 +217,5 @@ func FindSheetByTag(db *gorm.DB, tag string) []*Sheet {
 		}
 	}
 
-	return affectedSheets
-}
-
-func SanitizeName(s string) string {
-	return sanitize.Name(unidecode.Unidecode(s))
+	return affectedSheets, nil
 }

@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"os"
 	"path"
 
 	. "github.com/SheetAble/SheetAble/backend/api/config"
@@ -12,20 +11,19 @@ import (
 	"github.com/SheetAble/SheetAble/backend/api/models"
 	"github.com/SheetAble/SheetAble/backend/api/utils"
 	"github.com/gin-gonic/gin"
-	"github.com/kennygrant/sanitize"
 )
 
 /*
-	This endpoint will return all composers in Page like style.
-	Meaning POST request will have 3 attributes:
-		- sort_by: (how is it sorted)
-		- page: (what page)
-		- limit: (limit number)
+This endpoint will return all composers in Page like style.
+Meaning POST request will have 3 attributes:
+  - sort_by: (how is it sorted)
+  - page: (what page)
+  - limit: (limit number)
 
-	Return:
-		- composers: [...]
-		- page_max: [7] // How many pages there are
-		- page_current: [1] // Which page is currently selected
+Return:
+  - composers: [...]
+  - page_max: [7] // How many pages there are
+  - page_current: [1] // Which page is currently selected
 */
 func (server *Server) GetComposersPage(c *gin.Context) {
 	var form forms.GetComposersPageRequest
@@ -40,8 +38,7 @@ func (server *Server) GetComposersPage(c *gin.Context) {
 		Page:  form.Page,
 	}
 
-	var composer models.Composer
-	pageNew, err := composer.List(server.DB, pagination)
+	pageNew, err := models.ListComposers(server.DB, pagination)
 	if err != nil {
 		utils.DoError(c, http.StatusInternalServerError, err)
 		return
@@ -50,17 +47,17 @@ func (server *Server) GetComposersPage(c *gin.Context) {
 }
 
 /*
-	Update a composer via PUT request
-	body - formdata
-	example:
-		- name: Chopin
-		- portrait_url: url
-		- epoch: romance
+Update a composer via PUT request
+body - formdata
+example:
+  - name: Chopin
+  - portrait_url: url
+  - epoch: romance
 */
 func (server *Server) UpdateComposer(c *gin.Context) {
-	composerName := c.Param("composerName")
-	if composerName == "" {
-		utils.DoError(c, http.StatusBadRequest, errors.New("no composer given"))
+	composerUuid := c.Param("composerUuid")
+	if composerUuid == "" {
+		utils.DoError(c, http.StatusBadRequest, errors.New("no composer uuid given"))
 		return
 	}
 
@@ -70,41 +67,35 @@ func (server *Server) UpdateComposer(c *gin.Context) {
 		return
 	}
 
-	uploadComposerName := composerName
-	if form.Name != "" {
-		uploadComposerName = form.Name
+	// Uploads a portrait to the server if given
+	uploadSuccess := uploadPortait(form, composerUuid)
+
+	portraitUrl := form.PortraitUrl
+	if uploadSuccess {
+		portraitUrl = "/composer/portrait/" + composerUuid
 	}
 
-	// Uploads a portrait to the server if given
-	uploadSuccess := false
-	uploadSuccess = uploadPortait(form, uploadComposerName, composerName)
-
-	composer := &models.Composer{}
-	newComp, err := composer.UpdateComposer(server.DB,
-		composerName,
-		form.Name,
-		form.PortraitUrl,
-		form.Epoch,
-		uploadSuccess,
-	)
+	composer := models.NewComposer(composerUuid, form.Name, portraitUrl, form.Epoch)
+	// TODO: does this work? Verify!
+	// TODO: make sure updatedAt is updated, but not createdAt
+	err := composer.UpdateAtDb(server.DB)
 	if err != nil {
-		utils.DoError(c, http.StatusNotFound, fmt.Errorf("composer not found: %v", err))
+		utils.DoError(c, http.StatusNotFound, fmt.Errorf("Failed to update composer: %v", err))
 		return
 	}
-	c.JSON(http.StatusOK, newComp)
+	c.JSON(http.StatusOK, composer)
 }
 
 func (server *Server) DeleteComposer(c *gin.Context) {
-	composerName := c.Param("composerName")
-	if composerName == "" {
-		utils.DoError(c, http.StatusBadRequest, errors.New("no composer given"))
+	composerUuid := c.Param("composerUuid")
+	if composerUuid == "" {
+		utils.DoError(c, http.StatusBadRequest, errors.New("no composer uuid given"))
 		return
 	}
 
-	composer := &models.Composer{}
-	_, err := composer.DeleteComposer(server.DB, composerName)
+	err := models.DeleteComposer(server.DB, composerUuid)
 	if err != nil {
-		utils.DoError(c, http.StatusNotFound, fmt.Errorf("failed to delete composer, composer not found: %v", err))
+		utils.DoError(c, http.StatusNotFound, fmt.Errorf("failed to delete composer: %v", err))
 		return
 	}
 
@@ -112,22 +103,26 @@ func (server *Server) DeleteComposer(c *gin.Context) {
 }
 
 /*
-	Serve the Composer Portraits
-	Example request:
-		GET /composer/portrait/Chopin
+Serve the Composer Portraits
+Example request:
+
+	GET /composer/portrait/Chopin
 */
 func (server *Server) ServePortraits(c *gin.Context) {
-	name := c.Param("composerName")
-	filePath := path.Join(Config().ConfigPath, "composer", name+".png")
+	composerUuid := c.Param("composerUuid")
+	if composerUuid == "" {
+		utils.DoError(c, http.StatusBadRequest, errors.New("no composer uuid given"))
+		return
+	}
+	filePath := path.Join(Config().ConfigPath, "composer", composerUuid+".png")
 	c.File(filePath)
 }
 
 /*
-	Upload a portrait
-	! Currently only PNG files supported
+Upload a portrait
+! Currently only PNG files supported
 */
-func uploadPortait(form forms.UpdateComposersRequest, compName string, originalName string) bool {
-
+func uploadPortait(form forms.UpdateComposersRequest, composerUuid string) bool {
 	if form.File == nil {
 		return false
 	}
@@ -140,11 +135,9 @@ func uploadPortait(form forms.UpdateComposersRequest, compName string, originalN
 
 	// Create the composer Directory if it doesn't exist yet
 	dir := path.Join(Config().ConfigPath, "composer")
-	fullpath := path.Join(dir, sanitize.Name(compName)+".png")
-	if originalName != compName {
-		os.Remove(path.Join(dir, originalName+".png"))
-	}
 	utils.CreateDir(dir)
+
+	fullpath := path.Join(dir, composerUuid+".png")
 
 	err = utils.OsCreateFile(fullpath, portrait)
 	if err != nil {

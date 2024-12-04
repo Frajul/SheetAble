@@ -11,13 +11,9 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
-	"mime/multipart"
 	"net/http"
-	"os"
 	"path"
 	"strings"
-	"time"
 
 	"github.com/SheetAble/SheetAble/backend/api/auth"
 	"github.com/SheetAble/SheetAble/backend/api/forms"
@@ -35,6 +31,7 @@ type Response struct {
 	Composers *[]Comp `json: "composers"`
 }
 
+// Composer from OpenOpusAPI
 type Comp struct {
 	Name         string `json:"name"`
 	CompleteName string `json:"complete_name"`
@@ -47,6 +44,7 @@ type Comp struct {
 
 func (server *Server) UploadFile(c *gin.Context) {
 	// Check for authentication
+	// TODO: check it always for all api!!
 	token := utils.ExtractToken(c)
 	uid, err := auth.ExtractTokenID(token, Config().ApiSecret)
 	if err != nil || uid == 0 {
@@ -68,25 +66,48 @@ func (server *Server) UploadFile(c *gin.Context) {
 	uploadPath := path.Join(Config().ConfigPath, "sheets/uploaded-sheets")
 	thumbnailPath := path.Join(Config().ConfigPath, "sheets/thumbnails")
 
-	// Save composer in the database
-	// TODO: first check whether composer already exists in database
-	comp := safeComposer(server, uploadForm.Composer)
+	existsComposer, err := models.ExistsComposer(server.DB, uploadForm.Composer) // TODO: Add Form Field ComposerUuid
+	if err != nil {
+		utils.DoError(c, http.StatusInternalServerError, fmt.Errorf("unable to check composer existence: %v", err.Error()))
+		return
+	}
+
+	var composerUuid string
+
+	if !existsComposer {
+		opusComposer, err := findComposerInOpenOpus(uploadForm.Composer) // TODO: Rename Form Field to ComposerName
+		if err != nil {
+			utils.DoError(c, http.StatusInternalServerError, fmt.Errorf("unable to check openopus: %v", err.Error()))
+			return
+		}
+
+		composerUuid, err := generateNonexistentComposerUuid(server)
+		if err != nil {
+			utils.DoError(c, http.StatusInternalServerError, fmt.Errorf("unable to check existing uuids: %v", err.Error()))
+			return
+		}
+		composer := models.NewComposer(composerUuid, opusComposer.CompleteName, opusComposer.Portrait, opusComposer.Epoch)
+		composer.SaveToDb(server.DB)
+	} else {
+		composerUuid = "" // TODO: get from form or databsae
+	}
 
 	utils.CreateDir(prePath)
 	utils.CreateDir(uploadPath)
 	utils.CreateDir(thumbnailPath)
 
-	// Handle case where no composer is given
-	uploadPath = checkComposer(uploadPath, comp)
-
-	// Check if the file already exists
-	sheetName := uploadForm.SheetName
-	releaseDate := uploadForm.ReleaseDate
-
-	fullpath, err := checkFile(uploadPath, sheetName)
-	if fullpath == "" || err != nil {
+	// TODO: Check if the file already exists
+	sheetUuid, err := generateNonexistentSheetUuid(server)
+	if err != nil {
+		utils.DoError(c, http.StatusInternalServerError, fmt.Errorf("unable to check existing uuids: %v", err.Error()))
 		return
 	}
+	// releaseDate := uploadForm.ReleaseDate
+
+	// fullpath, err := checkFileExists(uploadPath, sheetUuid)
+	// if fullpath == "" || err != nil {
+	// 	return
+	// }
 
 	// Create file
 	theFile, err := uploadForm.File.Open()
@@ -95,13 +116,22 @@ func (server *Server) UploadFile(c *gin.Context) {
 		return
 	}
 	defer theFile.Close()
-	err = createFile(uid, server, fullpath, theFile, comp, sheetName, releaseDate, uploadForm.InformationText)
+
+	fullpath := path.Join(uploadPath, sheetUuid+".pdf")
+	err = utils.OsCreateFile(fullpath, theFile)
+	if err != nil {
+		utils.DoError(c, http.StatusInternalServerError, fmt.Errorf("unable to create sheet file: %v", err.Error()))
+		return
+	}
+
+	sheet := models.NewSheet(sheetUuid, uploadForm.SheetName, composerUuid, sheetUuid+".pdf", true)
+	err = sheet.SaveToDb(server.DB)
 	if err != nil {
 		c.String(http.StatusInternalServerError, err.Error())
 		return
 	}
 
-	err = utils.CreateThumbnailFromPdf(fullpath, models.SanitizeName(sheetName))
+	err = utils.CreateThumbnailFromPdf(fullpath, sheetUuid)
 	if err != nil {
 		c.String(http.StatusInternalServerError, err.Error())
 		return
@@ -119,11 +149,14 @@ func (server *Server) UpdateSheet(c *gin.Context) {
 		return
 	}
 
-	sheetName := c.Param("sheetName")
+	sheetUuid := c.Param("sheetUuid")
+	if sheetUuid == "" {
+		utils.DoError(c, http.StatusBadRequest, errors.New("no sheet uuid given"))
+		return
+	}
 
 	// Delete Sheet
-	var sheet models.Sheet
-	_, err = sheet.DeleteSheet(server.DB, sheetName)
+	err = models.DeleteSheet(server.DB, sheetUuid)
 	if err != nil {
 		c.String(http.StatusBadRequest, err.Error())
 		return
@@ -133,170 +166,74 @@ func (server *Server) UpdateSheet(c *gin.Context) {
 
 }
 
-// TODO: this actually does much more than getting an url
-func getPortraitURL(composerName string) Comp {
+func findComposerInOpenOpus(composerName string) (*Comp, error) {
+	// TODO: escape composerName to prevent injection attacks
 	resp, err := http.Get("https://api.openopus.org/composer/list/search/" + composerName + ".json")
 	if err != nil {
-		fmt.Println(err)
-
-		return Comp{
-			CompleteName: composerName,
-			SafeName:     models.SanitizeName(composerName),
-			Portrait:     "https://icon-library.com/images/unknown-person-icon/unknown-person-icon-4.jpg",
-			Epoch:        "Unknown",
-		}
+		return &Comp{}, err
 	}
 
 	defer resp.Body.Close()
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		fmt.Println(err)
+		return &Comp{}, err
 	}
 	response := &Response{
 		Composers: &[]Comp{},
 	}
 
-	err_new := json.Unmarshal([]byte(string(body)), response)
-	fmt.Println(err_new)
+	err = json.Unmarshal([]byte(string(body)), response)
+	if err != nil {
+		return &Comp{}, err
+	}
 	composers := *response.Composers
 
 	// Check if the given name and the name from the API are alike
 	if len(composers) == 0 || (!strings.EqualFold(composerName, composers[0].Name) && !strings.EqualFold(composerName, composers[0].CompleteName)) {
-		return Comp{
+		return &Comp{
 			CompleteName: composerName,
-			SafeName:     models.SanitizeName(composerName),
+			SafeName:     composerName,
 			Portrait:     "https://icon-library.com/images/unknown-person-icon/unknown-person-icon-4.jpg",
 			Epoch:        "Unknown",
-		}
+		}, nil
 	}
 
-	return composers[0]
+	return &composers[0], nil
 }
 
-// Save sheet to database
-// TODO: rename function to make clear it is used in library sync
-func SafeComposer(server *Server, originalNameAndComposer, safeNameAndComposer models.ComposerSheetSafeNames) {
-	if models.ExistsComposer(server.DB, safeNameAndComposer.ComposerSafeName) {
-		fmt.Printf("Composer %v already exists, not creating anew!\n", safeNameAndComposer.ComposerSafeName)
-		return
-	}
-	fmt.Printf("Adding composer %v to database!\n", safeNameAndComposer.ComposerSafeName)
-
-	compo := getPortraitURL(originalNameAndComposer.ComposerSafeName)
-
-	comp := models.Composer{
-		Name:        compo.CompleteName,
-		SafeName:    compo.SafeName,
-		PortraitURL: compo.Portrait,
-		Epoch:       compo.Epoch,
-	}
-
-	comp.Prepare()
-	comp.SaveComposer(server.DB)
-}
-
-func safeComposer(server *Server, composer string) Comp {
-	compo := getPortraitURL(composer)
-
-	if compo.SafeName == "" {
-		// Used for chinese/japanese chars etc
-		compo.SafeName = models.SanitizeName(compo.CompleteName)
-	}
-
-	comp := models.Composer{
-		Name:        compo.CompleteName,
-		SafeName:    compo.SafeName,
-		PortraitURL: compo.Portrait,
-		Epoch:       compo.Epoch,
-	}
-
-	comp.Prepare()
-	comp.SaveComposer(server.DB)
-	return compo
-}
-
-func checkComposer(path string, comp Comp) string {
-	// Handle case where no composer is given
-	composer := comp.SafeName
-	fmt.Println(composer)
-	if composer != "" {
-		path += "/" + composer
-	} else {
-		path += "/unknown"
-	}
-	utils.CreateDir(path)
-	return path
-}
-
-// Save sheet to database
-// TODO: rename function to make clear it is used in library sync
-func SafeSheet(server *Server, originalNameAndComposer, safeNameAndComposer models.ComposerSheetSafeNames) {
-	// Create database entry
-	sheet := models.Sheet{
-		Uuid:            generateNonexistentUuid(server),
-		SafeSheetName:   safeNameAndComposer.SheetSafeName,
-		SheetName:       originalNameAndComposer.SheetSafeName,
-		SafeComposer:    safeNameAndComposer.ComposerSafeName,
-		Composer:        originalNameAndComposer.ComposerSafeName,
-		UploaderID:      0, // TODO: add uid for sync task
-		ReleaseDate:     createDate("1999-12-31"),
-		InformationText: "",
-	}
-	sheet.Prepare()
-
-	_, err := sheet.SaveSheet(server.DB)
-	if err != nil {
-		log.Fatal(err)
-	}
-}
-
-func generateNonexistentUuid(server *Server) string {
+func generateNonexistentComposerUuid(server *Server) (string, error) {
 	uuid := xid.New().String()
-	if existsUuid(server.DB, uuid) {
-		return generateNonexistentUuid(server)
+	exists, err := models.ExistsComposer(server.DB, uuid)
+	if err != nil {
+		return "", err
+	}
+
+	if exists {
+		return generateNonexistentComposerUuid(server)
 	} else {
-		return uuid
+		return uuid, nil
 	}
 }
 
-func createFile(uid uint32, server *Server, fullpath string, file multipart.File, comp Comp, sheetName string, releaseDate string, informationText string) error {
-	// Create database entry
-	sheet := models.Sheet{
-		Uuid:            generateNonexistentUuid(server),
-		SafeSheetName:   models.SanitizeName(sheetName),
-		SheetName:       sheetName,
-		SafeComposer:    models.SanitizeName(comp.CompleteName),
-		Composer:        comp.CompleteName,
-		UploaderID:      uid,
-		ReleaseDate:     createDate(releaseDate),
-		InformationText: informationText,
-	}
-	sheet.Prepare()
-
-	_, err := sheet.SaveSheet(server.DB)
+func generateNonexistentSheetUuid(server *Server) (string, error) {
+	uuid := xid.New().String()
+	exists, err := models.ExistsSheet(server.DB, uuid)
 	if err != nil {
-		return err
+		return "", err
 	}
 
-	err = utils.OsCreateFile(fullpath, file)
-	if err != nil {
-		return err
+	if exists {
+		return generateNonexistentSheetUuid(server)
+	} else {
+		return uuid, nil
 	}
-	return nil
 }
 
-func createDate(date string) time.Time {
-	// Create a usable date
-	const layoutISO = "2006-01-02"
-	t, _ := time.Parse(layoutISO, date)
-	return t
-}
-
-func checkFile(pathName string, sheetName string) (string, error) {
-	// Check if the file already exists
-	fullpath := fmt.Sprintf("%s/%s.pdf", pathName, models.SanitizeName(sheetName))
-	if _, err := os.Stat(fullpath); err == nil {
-		return "", errors.New("file already exists")
-	}
-	return fullpath, nil
-}
+// func checkFileExists(pathName string, sheetName string) (string, error) {
+// 	// Check if the file already exists
+// 	fullpath := fmt.Sprintf("%s/%s.pdf", pathName, models.SanitizeName(sheetName))
+// 	if _, err := os.Stat(fullpath); err == nil {
+// 		return "", errors.New("file already exists")
+// 	}
+// 	return fullpath, nil
+// }
