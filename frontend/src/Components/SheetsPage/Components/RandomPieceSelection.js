@@ -54,9 +54,7 @@ function RandomPieceSelection({ sheetPages, page }) {
               className="rand-img cursor"
               src={`${axios.defaults.baseURL}/sheet/thumbnail/${sheet.uuid}`}
               alt="Sheet Thumbnail"
-              onClick={() =>
-                history.push(`sheetviewer/${sheet.pdf_url.split("pdf/").pop()}`)
-              }
+              onClick={() => history.push(`sheetviewer/${sheet.uuid}`)}
             />
             <div className="sheet-name-container n-cursor">
               <span className="sheet-name">{sheet.sheet_name}</span>

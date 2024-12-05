@@ -134,10 +134,10 @@ function Sheet({
   );
 
   const byComposerPages = findComposerByPages(
-    sheet.composerUuid,
+    sheet.composer_uuid,
     composerPages
   );
-  const byComposers = findComposerByComposers(sheet.composerUuid, composers);
+  const byComposers = findComposerByComposers(sheet.composer_uuid, composers);
 
   const [composer] = useState(
     byComposerPages === undefined
@@ -149,7 +149,7 @@ function Sheet({
 
   const pdfRequest = () => {
     axios
-      .get(`/sheet/pdf/${sheet.composerUuid}/${sheetUuid}`, {
+      .get(`/sheet/pdf/${sheetUuid}`, {
         responseType: "arraybuffer",
       })
       .then((res) => {
@@ -274,7 +274,7 @@ function Sheet({
                 <span className="bold sheet_info_info">Release Date:</span>
                 <span className="sheet_info_info">
                   {" "}
-                  {displayTimeAsString(sheet.ReleaseDate)}
+                  {displayTimeAsString(sheet.release_date)}
                 </span>
               </div>
               <div>

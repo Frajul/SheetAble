@@ -10,9 +10,7 @@ function SheetBox({ sheet }) {
   return (
     <li
       key={sheet.sheet_name}
-      onClick={() =>
-        history.push(`sheetviewer/${sheet.pdf_url.split("pdf/").pop()}`)
-      }
+      onClick={() => history.push(`sheet/${sheet.uuid}`)}
       className="li-height"
     >
       <div className="box-container remove_shadow">
