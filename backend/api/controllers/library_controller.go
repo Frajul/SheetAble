@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 	"path"
+	"path/filepath"
 	"sort"
 	"strings"
 
@@ -16,6 +17,7 @@ import (
 	"github.com/jinzhu/gorm"
 )
 
+// This syncs sheet files in sheets/local-sheets folder with the database
 func (server *Server) SyncLibrary(c *gin.Context) {
 	fmt.Printf("Syncing library...\n")
 
@@ -107,20 +109,26 @@ func listSheetsFromFiles(libraryPath string) []ComposerSheetSafeNames {
 		if composerEntry.IsDir() {
 			composer := composerEntry.Name()
 
-			sheetEntries, err := os.ReadDir(path.Join(libraryPath, composer))
-			if err != nil {
-				log.Fatal(err)
-			}
+			composerPath := path.Join(libraryPath, composer)
+			err := filepath.WalkDir(composerPath, func(p string, d os.DirEntry, err error) error {
+				if err != nil {
+					return err
+				}
 
-			for _, sheetEntry := range sheetEntries {
-				sheet := sheetEntry.Name()
-				if strings.HasSuffix(sheet, ".pdf") {
-					sheetName := strings.TrimSuffix(sheet, ".pdf")
-
-					file := path.Join(libraryPath, composer, sheet)
+				// Check if it's a regular file and has a .pdf extension
+				if !d.IsDir() && strings.HasSuffix(d.Name(), ".pdf") {
+					file := path.Join(libraryPath, composer, d.Name())
+					sheetName := strings.TrimSuffix(filepath.Base(file), ".pdf")
 
 					sheets = append(sheets, ComposerSheetSafeNames{File: file, SheetName: sheetName, ComposerName: composer})
 				}
+
+				return nil
+			})
+
+			if err != nil {
+				fmt.Printf("Error walking directory: %v\n", err)
+				return sheets
 			}
 		}
 	}
