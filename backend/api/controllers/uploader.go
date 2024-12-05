@@ -202,31 +202,33 @@ func findComposerInOpenOpus(composerName string) (*Comp, error) {
 }
 
 func generateNonexistentComposerUuid(server *Server) (string, error) {
-	uuid := xid.New().String()
-	exists, err := models.ExistsComposer(server.DB, uuid)
-	if err != nil {
-		return "", err
-	}
+	for i := 0; i < 10; i++ {
+		uuid := xid.New().String()
+		exists, err := models.ExistsComposer(server.DB, uuid)
+		if err != nil {
+			return "", err
+		}
 
-	if exists {
-		return generateNonexistentComposerUuid(server)
-	} else {
-		return uuid, nil
+		if !exists {
+			return uuid, nil
+		}
 	}
+	return "", errors.New("Somehow unable to generate new uuid for composer.")
 }
 
 func generateNonexistentSheetUuid(server *Server) (string, error) {
-	uuid := xid.New().String()
-	exists, err := models.ExistsSheet(server.DB, uuid)
-	if err != nil {
-		return "", err
-	}
+	for i := 0; i < 10; i++ {
+		uuid := xid.New().String()
+		exists, err := models.ExistsSheet(server.DB, uuid)
+		if err != nil {
+			return "", err
+		}
 
-	if exists {
-		return generateNonexistentSheetUuid(server)
-	} else {
-		return uuid, nil
+		if !exists {
+			return uuid, nil
+		}
 	}
+	return "", errors.New("Somehow unable to generate new uuid for sheet.")
 }
 
 // func checkFileExists(pathName string, sheetName string) (string, error) {
