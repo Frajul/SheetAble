@@ -98,7 +98,7 @@ func (server *Server) GetThumbnail(c *gin.Context) {
 		utils.DoError(c, http.StatusBadRequest, errors.New("no sheet uuid given"))
 		return
 	}
-	filePath := path.Join(Config().ConfigPath, "sheets/thumbnails", sheetUuid)
+	filePath := path.Join(Config().ConfigPath, "sheets/thumbnails", sheetUuid+".jpg")
 	c.File(filePath)
 }
 
