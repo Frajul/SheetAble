@@ -124,7 +124,7 @@ func (server *Server) UploadFile(c *gin.Context) {
 		return
 	}
 
-	sheet := models.NewSheet(sheetUuid, uploadForm.SheetName, composerUuid, sheetUuid+".pdf", true)
+	sheet := models.NewSheet(sheetUuid, uploadForm.SheetName, composerUuid, fullpath, true)
 	err = sheet.SaveToDb(server.DB)
 	if err != nil {
 		c.String(http.StatusInternalServerError, err.Error())

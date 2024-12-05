@@ -88,8 +88,8 @@ func (server *Server) GetPDF(c *gin.Context) {
 		utils.DoError(c, http.StatusInternalServerError, fmt.Errorf("unable to get sheet: %v", err.Error()))
 		return
 	}
-	filePath := path.Join(Config().ConfigPath, "sheets", sheet.File)
-	c.File(filePath)
+
+	c.File(sheet.File)
 }
 
 func (server *Server) GetThumbnail(c *gin.Context) {
