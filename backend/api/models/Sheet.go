@@ -63,8 +63,9 @@ func (sheet *Sheet) SaveToDb(db *gorm.DB) error {
 	return result.Error
 }
 
+// Updates only columns with non nil
 func (sheet *Sheet) UpdateAtDb(db *gorm.DB) error {
-	result := db.Save(&sheet)
+	result := db.Model(&sheet).Updates(&sheet)
 	return result.Error
 }
 
@@ -200,7 +201,7 @@ func (s *Sheet) DeleteTag(db *gorm.DB, tag string) error {
 
 func (s *Sheet) UpdateSheetInformationText(db *gorm.DB, value string) error {
 	s.InformationText = value
-	err := db.Save(s).Error
+	err := db.Model(s).Updates(s).Error
 	return err
 }
 

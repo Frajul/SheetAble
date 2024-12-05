@@ -40,8 +40,9 @@ func (composer *Composer) SaveToDb(db *gorm.DB) error {
 	return err
 }
 
+// Updates only columns with non nil
 func (composer *Composer) UpdateAtDb(db *gorm.DB) error {
-	err := db.Save(&composer).Error
+	err := db.Model(&composer).Updates(&composer).Error
 	return err
 }
 
