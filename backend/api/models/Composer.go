@@ -9,7 +9,7 @@ import (
 )
 
 type Composer struct {
-	Uuid        string    `gorm:"primary_key"`
+	Uuid        string    `gorm:"primary_key" json:"uuid"`
 	Name        string    `json:"name"`
 	PortraitUrl string    `json:"portrait_url"`
 	Epoch       string    `json:"epoch"`
@@ -36,33 +36,33 @@ func (composer *Composer) SaveToDb(db *gorm.DB) error {
 	if exists {
 		return errors.New("Composer with this uuid already exists")
 	}
-	db.Save(&composer)
-	return db.Error
+	err = db.Save(&composer).Error
+	return err
 }
 
 func (composer *Composer) UpdateAtDb(db *gorm.DB) error {
-	db.Save(&composer)
-	return db.Error
+	err := db.Save(&composer).Error
+	return err
 }
 
 func DeleteComposer(db *gorm.DB, uuid string) error {
-	db.Where("uuid = ?", uuid).Delete(&Composer{})
+	err := db.Where("uuid := ?", uuid).Delete(&Composer{}).Error
 
-	if db.Error != nil {
-		if gorm.IsRecordNotFoundError(db.Error) {
+	if err != nil {
+		if gorm.IsRecordNotFoundError(err) {
 			return errors.New("Composer not found")
 		}
-		return db.Error
+		return err
 	}
 
 	// Swap sheets composer to Unknown
-	err := assureUnknownComposerExists(db)
+	err = assureUnknownComposerExists(db)
 	if err != nil {
 		return err
 	}
-	db.Exec("UPDATE 'sheets' SET 'composer' = '' WHERE (composer = ?);", uuid)
-	if db.Error != nil {
-		return db.Error
+	err = db.Exec("UPDATE 'sheets' SET 'composer' = '' WHERE (composer := ?);", uuid).Error
+	if err != nil {
+		return err
 	}
 	return nil
 }
@@ -84,8 +84,8 @@ func IsComposerUnreferenced(db *gorm.DB, uuid string) (bool, error) {
 	var sheets []Sheet
 
 	result := db.Model(&Sheet{}).Where("composer_uuid = ?", uuid).Find(&sheets)
-	if db.Error != nil {
-		return false, db.Error
+	if result.Error != nil {
+		return false, result.Error
 	}
 	return result.RowsAffected <= 1, nil
 }
@@ -93,14 +93,14 @@ func IsComposerUnreferenced(db *gorm.DB, uuid string) (bool, error) {
 func SearchComposers(db *gorm.DB, searchValue string) ([]*Composer, error) {
 	var composers []*Composer
 	searchValue = "%" + searchValue + "%"
-	db.Where("name LIKE ?", searchValue).Find(&composers)
-	return composers, db.Error
+	err := db.Where("name LIKE ?", searchValue).Find(&composers).Error
+	return composers, err
 }
 
 func ListComposers(db *gorm.DB, pagination Pagination) (*Pagination, error) {
 	var composers []*Composer
-	db.Scopes(paginate(composers, &pagination, db)).Find(&composers)
-	if db.Error != nil {
+	err := db.Scopes(paginate(composers, &pagination, db)).Find(&composers).Error
+	if err != nil {
 		return &Pagination{}, nil
 	}
 	pagination.Rows = composers
@@ -121,9 +121,9 @@ func ExistsComposer(db *gorm.DB, uuid string) (bool, error) {
 
 func FindComposerByUuid(db *gorm.DB, uuid string) (*Composer, error) {
 	var composer Composer
-	db.First(&composer, "uuid = ?", uuid)
-	if db.Error != nil {
-		return &Composer{}, db.Error
+	err := db.First(&composer, "uuid = ?", uuid).Error
+	if err != nil {
+		return &Composer{}, err
 	}
 	return &composer, nil
 }

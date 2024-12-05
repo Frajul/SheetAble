@@ -15,7 +15,7 @@ import (
 )
 
 type Sheet struct {
-	Uuid            string         `gorm:"primary_key"`
+	Uuid            string         `gorm:"primary_key" json:"uuid"`
 	Name            string         `json:"sheet_name"`
 	ComposerUuid    string         `json:"composer_uuid"`
 	ReleaseDate     time.Time      `json:"release_date"`
@@ -59,13 +59,13 @@ func (sheet *Sheet) SaveToDb(db *gorm.DB) error {
 	if exists {
 		return errors.New("Sheet with this uuid already exists")
 	}
-	db.Save(&sheet)
-	return db.Error
+	result := db.Save(&sheet)
+	return result.Error
 }
 
 func (sheet *Sheet) UpdateAtDb(db *gorm.DB) error {
-	db.Save(&sheet)
-	return db.Error
+	result := db.Save(&sheet)
+	return result.Error
 }
 
 func DeleteSheet(db *gorm.DB, uuid string) error {
@@ -73,13 +73,13 @@ func DeleteSheet(db *gorm.DB, uuid string) error {
 	if sheet.WasUploaded {
 		return errors.New("Sheet was not uploaded, please delete it by removing the file")
 	}
-	db.Where("uuid = ?", uuid).Delete(&sheet)
+	result := db.Where("uuid = ?", uuid).Delete(&sheet)
 
-	if db.Error != nil {
-		if gorm.IsRecordNotFoundError(db.Error) {
+	if result.Error != nil {
+		if gorm.IsRecordNotFoundError(result.Error) {
 			return errors.New("Sheet not found")
 		}
-		return db.Error
+		return result.Error
 	}
 
 	// Delete sheet file and thumbnail
@@ -112,8 +112,8 @@ func DeleteSheet(db *gorm.DB, uuid string) error {
 func SearchSheets(db *gorm.DB, searchValue string) ([]*Sheet, error) {
 	var sheets []*Sheet
 	searchValue = "%" + searchValue + "%"
-	db.Where("name LIKE ?", searchValue).Find(&sheets)
-	return sheets, db.Error
+	result := db.Where("name LIKE ?", searchValue).Find(&sheets)
+	return sheets, result.Error
 }
 
 func ExistsSheet(db *gorm.DB, uuid string) (bool, error) {
@@ -129,9 +129,9 @@ func ExistsSheet(db *gorm.DB, uuid string) (bool, error) {
 
 func FindSheetByUuid(db *gorm.DB, uuid string) (*Sheet, error) {
 	var sheet Sheet
-	db.First(&sheet, "uuid = ?", uuid)
-	if db.Error != nil {
-		return &Sheet{}, db.Error
+	result := db.First(&sheet, "uuid = ?", uuid)
+	if result.Error != nil {
+		return &Sheet{}, result.Error
 	}
 	return &sheet, nil
 }
@@ -155,12 +155,15 @@ func GetAllSheets(db *gorm.DB) (*[]Sheet, error) {
 func ListSheets(db *gorm.DB, pagination Pagination, composerUuid string) (*Pagination, error) {
 	var sheets []*Sheet
 	if composerUuid != "" {
-		db.Scopes(composerEqual(composerUuid), paginate(sheets, &pagination, db)).Find(&sheets)
+		result := db.Scopes(composerEqual(composerUuid), paginate(sheets, &pagination, db)).Find(&sheets)
+		if result.Error != nil {
+			return &Pagination{}, result.Error
+		}
 	} else {
-		db.Scopes(paginate(sheets, &pagination, db)).Find(&sheets)
-	}
-	if db.Error != nil {
-		return &Pagination{}, nil
+		result := db.Scopes(paginate(sheets, &pagination, db)).Find(&sheets)
+		if result.Error != nil {
+			return &Pagination{}, result.Error
+		}
 	}
 	pagination.Rows = sheets
 
@@ -177,8 +180,8 @@ func composerEqual(composerUuid string) func(db *gorm.DB) *gorm.DB {
 func (s *Sheet) AppendTag(db *gorm.DB, tag string) error {
 	newArray := append(s.Tags, tag)
 
-	db.Model(&s).Update(Sheet{Tags: newArray})
-	return db.Error
+	err := db.Model(&s).Update(Sheet{Tags: newArray}).Error
+	return err
 }
 
 func (s *Sheet) DeleteTag(db *gorm.DB, tag string) error {
@@ -190,15 +193,15 @@ func (s *Sheet) DeleteTag(db *gorm.DB, tag string) error {
 	}
 
 	newArray := pq.StringArray(utils.RemoveElementOfSlice(s.Tags, index))
-	db.Model(&s).Update(Sheet{Tags: newArray})
+	err := db.Model(&s).Update(Sheet{Tags: newArray}).Error
 
-	return db.Error
+	return err
 }
 
 func (s *Sheet) UpdateSheetInformationText(db *gorm.DB, value string) error {
 	s.InformationText = value
-	db.Save(s)
-	return db.Error
+	err := db.Save(s).Error
+	return err
 }
 
 func FindSheetByTag(db *gorm.DB, tag string) ([]*Sheet, error) {
@@ -206,9 +209,9 @@ func FindSheetByTag(db *gorm.DB, tag string) ([]*Sheet, error) {
 	var affectedSheets []*Sheet
 
 	// TODO: improve by using db native search
-	db.Find(&allSheets)
-	if db.Error != nil {
-		return affectedSheets, db.Error
+	result := db.Find(&allSheets)
+	if result.Error != nil {
+		return affectedSheets, result.Error
 	}
 
 	for _, sheet := range allSheets {

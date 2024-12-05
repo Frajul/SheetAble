@@ -157,15 +157,15 @@ func (u *User) UpdateAUser(db *gorm.DB, uid uint32) (*User, error) {
 	if err != nil {
 		log.Fatal(err)
 	}
-	db = db.Model(&User{}).Where("id = ?", uid).Take(&User{}).UpdateColumns(
+	result := db.Model(&User{}).Where("id = ?", uid).Take(&User{}).UpdateColumns(
 		map[string]interface{}{
 			"password":   u.Password,
 			"email":      u.Email,
 			"updated_at": time.Now(),
 		},
 	)
-	if db.Error != nil {
-		return &User{}, db.Error
+	if result.Error != nil {
+		return &User{}, result.Error
 	}
 	// This is to display the updated user
 	err = db.Model(&User{}).Where("id = ?", uid).Take(&u).Error
@@ -176,13 +176,12 @@ func (u *User) UpdateAUser(db *gorm.DB, uid uint32) (*User, error) {
 }
 
 func (u *User) DeleteAUser(db *gorm.DB, uid uint32) (int64, error) {
+	result := db.Model(&User{}).Where("id = ?", uid).Take(&User{}).Delete(&User{})
 
-	db = db.Model(&User{}).Where("id = ?", uid).Take(&User{}).Delete(&User{})
-
-	if db.Error != nil {
-		return 0, db.Error
+	if result.Error != nil {
+		return 0, result.Error
 	}
-	return db.RowsAffected, nil
+	return result.RowsAffected, nil
 }
 
 func RequestPasswordReset(db *gorm.DB, email string) (string, error) {
@@ -218,15 +217,15 @@ func ResetPassword(db *gorm.DB, passwordResetId string, updatedPassword string) 
 
 	user.BeforeSave() /* This will hash the password */
 
-	db = db.Model(&User{}).Where("password_reset = ?", passwordResetId).Take(&User{}).UpdateColumns(
+	result := db.Model(&User{}).Where("password_reset = ?", passwordResetId).Take(&User{}).UpdateColumns(
 		map[string]interface{}{
 			"password":              user.Password,
 			"updated_at":            time.Now(),
 			"password_reset_expire": time.Now(), /* So it cannot be used a 2nd time */
 		},
 	)
-	if db.Error != nil {
-		return &User{}, db.Error, 0
+	if result.Error != nil {
+		return &User{}, result.Error, 0
 	}
 
 	fmt.Println("Update user passsword")
