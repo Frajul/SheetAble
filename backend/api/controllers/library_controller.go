@@ -21,8 +21,16 @@ import (
 func (server *Server) SyncLibrary(c *gin.Context) {
 	fmt.Printf("Syncing library...\n")
 
+	sheetsPath := path.Join(Config().ConfigPath, "sheets")
 	libraryPath := path.Join(Config().ConfigPath, "sheets/local-sheets")
-	utils.CreateDir(libraryPath)
+	if err := utils.CreateDir(sheetsPath); err != nil {
+		utils.DoError(c, http.StatusInternalServerError, fmt.Errorf("unable to create dir: %v", err.Error()))
+		return
+	}
+	if err := utils.CreateDir(libraryPath); err != nil {
+		utils.DoError(c, http.StatusInternalServerError, fmt.Errorf("unable to create dir: %v", err.Error()))
+		return
+	}
 
 	server.SyncSheets(c, libraryPath)
 
@@ -41,8 +49,8 @@ func (server *Server) SyncSheets(c *gin.Context, libraryPath string) {
 		return
 	}
 
-	fmt.Printf("Local sheets: %v\n", localSheets)
-	fmt.Printf("Db sheets: %v\n", dbSheets)
+	fmt.Printf("Local sheets: %v\n", len(localSheets))
+	fmt.Printf("Db sheets: %v\n", len(*dbSheets))
 
 	orphanLocalSheets, orphanDbSheets := findOrphansInSortedComposerSheetNames(localSheets, *dbSheets)
 	// Add files to database which are not listed there
