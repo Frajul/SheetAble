@@ -71,9 +71,6 @@ func (sheet *Sheet) UpdateAtDb(db *gorm.DB) error {
 
 func DeleteSheet(db *gorm.DB, uuid string) error {
 	var sheet Sheet
-	if sheet.WasUploaded {
-		return errors.New("Sheet was not uploaded, please delete it by removing the file")
-	}
 	result := db.Where("uuid = ?", uuid).Delete(&sheet)
 
 	if result.Error != nil {
@@ -83,13 +80,14 @@ func DeleteSheet(db *gorm.DB, uuid string) error {
 		return result.Error
 	}
 
-	// Delete sheet file and thumbnail
-	paths := []string{
-		path.Join(Config().ConfigPath, "sheets", sheet.File),
-		path.Join(Config().ConfigPath, "sheets/thumbnails", sheet.Uuid+".png"),
+	path := path.Join(Config().ConfigPath, "sheets/thumbnails", sheet.Uuid+".png")
+	e := os.Remove(path)
+	if e != nil {
+		return e
 	}
-
-	for _, path := range paths {
+	// Do not remove local-file
+	if sheet.WasUploaded {
+		path := sheet.File
 		e := os.Remove(path)
 		if e != nil {
 			return e
@@ -97,7 +95,7 @@ func DeleteSheet(db *gorm.DB, uuid string) error {
 	}
 
 	// Delete unknown composer if not referenced anymore
-	if sheet.ComposerUuid == "" {
+	if sheet.ComposerUuid != "" {
 		isUnreferenced, err := IsComposerUnreferenced(db, sheet.ComposerUuid)
 		if err != nil {
 			return err
