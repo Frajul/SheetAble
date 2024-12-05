@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"net/http"
 	"path"
+	"strings"
+	"time"
 
 	. "github.com/SheetAble/SheetAble/backend/api/config"
 	"github.com/SheetAble/SheetAble/backend/api/forms"
@@ -75,9 +77,19 @@ func (server *Server) UpdateComposer(c *gin.Context) {
 		portraitUrl = "/composer/portrait/" + composerUuid
 	}
 
-	composer := models.NewComposer(composerUuid, form.Name, portraitUrl, form.Epoch)
-	// TODO: does this work? Verify!
-	// TODO: make sure updatedAt is updated, but not createdAt
+	var composer models.Composer
+	composer.Uuid = composerUuid
+	if name := strings.TrimSpace(form.Name); name != "" {
+		composer.Name = name
+	}
+	if portraitUrl != "" {
+		composer.PortraitUrl = portraitUrl
+	}
+	if epoch := strings.TrimSpace(form.Epoch); epoch != "" {
+		composer.Epoch = epoch
+	}
+	composer.UpdatedAt = time.Now()
+
 	err := composer.UpdateAtDb(server.DB)
 	if err != nil {
 		utils.DoError(c, http.StatusNotFound, fmt.Errorf("Failed to update composer: %v", err))
