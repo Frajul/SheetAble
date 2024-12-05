@@ -18,6 +18,7 @@ import (
 	"github.com/SheetAble/SheetAble/backend/api/auth"
 	"github.com/SheetAble/SheetAble/backend/api/forms"
 	"github.com/gin-gonic/gin"
+	"github.com/jinzhu/gorm"
 	"github.com/rs/xid"
 
 	. "github.com/SheetAble/SheetAble/backend/api/config"
@@ -66,32 +67,33 @@ func (server *Server) UploadFile(c *gin.Context) {
 	uploadPath := path.Join(Config().ConfigPath, "sheets/uploaded-sheets")
 	thumbnailPath := path.Join(Config().ConfigPath, "sheets/thumbnails")
 
-	existsComposer, err := models.ExistsComposer(server.DB, uploadForm.Composer) // TODO: Add Form Field ComposerUuid
-	if err != nil {
+	var composerName = strings.TrimSpace(uploadForm.ComposerName)
+
+	composerAlreadyExists := false
+	composer, err := models.FindComposerByNameCaseInsensitive(server.DB, composerName)
+	if err == nil {
+		composerAlreadyExists = true
+	} else if !gorm.IsRecordNotFoundError(err) {
 		utils.DoError(c, http.StatusInternalServerError, fmt.Errorf("unable to check composer existence: %v", err.Error()))
 		return
 	}
 
-	var composerUuid string
-
-	if !existsComposer {
-		opusComposer, err := findComposerInOpenOpus(uploadForm.Composer) // TODO: Rename Form Field to ComposerName
+	if !composerAlreadyExists {
+		opusComposer, err := findComposerInOpenOpus(composerName)
 		if err != nil {
 			utils.DoError(c, http.StatusInternalServerError, fmt.Errorf("unable to check openopus: %v", err.Error()))
 			return
 		}
 
 		composerUuid, err := generateNonexistentComposerUuid(server)
+
 		if err != nil {
 			utils.DoError(c, http.StatusInternalServerError, fmt.Errorf("unable to check existing uuids: %v", err.Error()))
 			return
 		}
-		composer := models.NewComposer(composerUuid, opusComposer.CompleteName, opusComposer.Portrait, opusComposer.Epoch)
+		composer = models.NewComposer(composerUuid, opusComposer.CompleteName, opusComposer.Portrait, opusComposer.Epoch)
 		composer.SaveToDb(server.DB)
-	} else {
-		composerUuid = "" // TODO: get from form or databsae
 	}
-
 	utils.CreateDir(prePath)
 	utils.CreateDir(uploadPath)
 	utils.CreateDir(thumbnailPath)
@@ -124,7 +126,8 @@ func (server *Server) UploadFile(c *gin.Context) {
 		return
 	}
 
-	sheet := models.NewSheet(sheetUuid, uploadForm.SheetName, composerUuid, fullpath, true)
+	sheet := models.NewSheet(sheetUuid, uploadForm.SheetName, composer.Uuid, fullpath, true)
+
 	err = sheet.SaveToDb(server.DB)
 	if err != nil {
 		c.String(http.StatusInternalServerError, err.Error())

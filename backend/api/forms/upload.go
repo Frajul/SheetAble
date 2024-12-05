@@ -4,7 +4,7 @@ import "mime/multipart"
 
 type UploadRequest struct {
 	File            *multipart.FileHeader `form:"uploadFile"`
-	Composer        string                `form:"composer"`
+	ComposerName    string                `form:"composer"`
 	SheetName       string                `form:"sheetName"`
 	ReleaseDate     string                `form:"releaseDate"`
 	Categories      string                `form:"categories"`

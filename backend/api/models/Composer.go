@@ -128,3 +128,12 @@ func FindComposerByUuid(db *gorm.DB, uuid string) (*Composer, error) {
 	}
 	return &composer, nil
 }
+
+func FindComposerByNameCaseInsensitive(db *gorm.DB, name string) (*Composer, error) {
+	var composer Composer
+	err := db.First(&composer, "LOWER(name) LIKE LOWER(?)", name).Error
+	if err != nil {
+		return &Composer{}, err
+	}
+	return &composer, nil
+}
