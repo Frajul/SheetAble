@@ -123,6 +123,16 @@ function SideBar(props) {
               onClick={() => {
                 props.resetData();
                 window.location.reload();
+
+                axios
+                  .post(`/library/refresh`)
+                  .then((res) => {
+                    props.resetData();
+                    window.location.reload();
+                  })
+                  .catch((err) => {
+                    console.error(err);
+                  });
               }}
               className="cursor"
             >
