@@ -10,7 +10,7 @@ function SheetBox({ sheet }) {
   return (
     <li
       key={sheet.sheet_name}
-      onClick={() => history.push(`sheet/${sheet.uuid}`)}
+      onClick={() => history.push(`/sheet/${sheet.uuid}`)}
       className="li-height"
     >
       <div className="box-container remove_shadow">

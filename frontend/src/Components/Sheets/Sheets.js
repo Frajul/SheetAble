@@ -14,7 +14,7 @@ function Sheets(props) {
     return (
       <li
         key={sheet.sheet_name}
-        onClick={() => history.push(`sheetviewer/${sheet.uuid}`)}
+        onClick={() => history.push(`/sheetviewer/${sheet.uuid}`)}
       >
         <div className="box-container remove_shadow">
           <img
