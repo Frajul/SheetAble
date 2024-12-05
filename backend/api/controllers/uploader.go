@@ -44,30 +44,51 @@ type Comp struct {
 }
 
 func (server *Server) UploadFile(c *gin.Context) {
-	// Check for authentication
-	// TODO: check it always for all api!!
-	token := utils.ExtractToken(c)
-	uid, err := auth.ExtractTokenID(token, Config().ApiSecret)
-	if err != nil || uid == 0 {
-		c.String(http.StatusUnauthorized, "Unauthorized")
-		return
-	}
-
 	var uploadForm forms.UploadRequest
-	if err = c.ShouldBind(&uploadForm); err != nil {
+	if err := c.ShouldBind(&uploadForm); err != nil {
 		utils.DoError(c, http.StatusBadRequest, fmt.Errorf("bad upload request: %v", err))
 		return
 	}
-	if err = uploadForm.ValidateForm(); err != nil {
+	if err := uploadForm.ValidateForm(); err != nil {
 		utils.DoError(c, http.StatusBadRequest, err)
 		return
 	}
 
-	prePath := path.Join(Config().ConfigPath, "sheets")
-	uploadPath := path.Join(Config().ConfigPath, "sheets/uploaded-sheets")
-	thumbnailPath := path.Join(Config().ConfigPath, "sheets/thumbnails")
-
 	var composerName = strings.TrimSpace(uploadForm.ComposerName)
+
+	// Create file
+	theFile, err := uploadForm.File.Open()
+	if err != nil {
+		c.String(http.StatusInternalServerError, err.Error())
+		return
+	}
+	defer theFile.Close()
+
+	// TODO: Check if the file already exists
+	uploadPath := path.Join(Config().ConfigPath, "sheets/uploaded-sheets")
+	prePath := path.Join(Config().ConfigPath, "sheets")
+
+	utils.CreateDir(prePath)
+	utils.CreateDir(uploadPath)
+
+	sheetUuid, err := GenerateNonexistentSheetUuid(server)
+	if err != nil {
+		utils.DoError(c, http.StatusInternalServerError, fmt.Errorf("unable to check existing uuids: %v", err.Error()))
+		return
+	}
+	fullpath := path.Join(uploadPath, sheetUuid+".pdf")
+	err = utils.OsCreateFile(fullpath, theFile)
+	if err != nil {
+		utils.DoError(c, http.StatusInternalServerError, fmt.Errorf("unable to create sheet file: %v", err.Error()))
+		return
+	}
+
+	server.UploadSheet(c, uploadForm.SheetName, sheetUuid, composerName, fullpath, true)
+}
+
+func (server *Server) UploadSheet(c *gin.Context, sheetName string, sheetUuid string, composerName string, filePath string, wasUploaded bool) {
+	thumbnailPath := path.Join(Config().ConfigPath, "sheets/thumbnails")
+	utils.CreateDir(thumbnailPath)
 
 	composerAlreadyExists := false
 	composer, err := models.FindComposerByNameCaseInsensitive(server.DB, composerName)
@@ -94,39 +115,8 @@ func (server *Server) UploadFile(c *gin.Context) {
 		composer = models.NewComposer(composerUuid, opusComposer.CompleteName, opusComposer.Portrait, opusComposer.Epoch)
 		composer.SaveToDb(server.DB)
 	}
-	utils.CreateDir(prePath)
-	utils.CreateDir(uploadPath)
-	utils.CreateDir(thumbnailPath)
 
-	// TODO: Check if the file already exists
-	sheetUuid, err := generateNonexistentSheetUuid(server)
-	if err != nil {
-		utils.DoError(c, http.StatusInternalServerError, fmt.Errorf("unable to check existing uuids: %v", err.Error()))
-		return
-	}
-	// releaseDate := uploadForm.ReleaseDate
-
-	// fullpath, err := checkFileExists(uploadPath, sheetUuid)
-	// if fullpath == "" || err != nil {
-	// 	return
-	// }
-
-	// Create file
-	theFile, err := uploadForm.File.Open()
-	if err != nil {
-		c.String(http.StatusInternalServerError, err.Error())
-		return
-	}
-	defer theFile.Close()
-
-	fullpath := path.Join(uploadPath, sheetUuid+".pdf")
-	err = utils.OsCreateFile(fullpath, theFile)
-	if err != nil {
-		utils.DoError(c, http.StatusInternalServerError, fmt.Errorf("unable to create sheet file: %v", err.Error()))
-		return
-	}
-
-	sheet := models.NewSheet(sheetUuid, uploadForm.SheetName, composer.Uuid, fullpath, true)
+	sheet := models.NewSheet(sheetUuid, sheetName, composer.Uuid, filePath, wasUploaded)
 
 	err = sheet.SaveToDb(server.DB)
 	if err != nil {
@@ -134,7 +124,7 @@ func (server *Server) UploadFile(c *gin.Context) {
 		return
 	}
 
-	err = utils.CreateThumbnailFromPdf(fullpath, sheetUuid)
+	err = utils.CreateThumbnailFromPdf(filePath, sheetUuid)
 	if err != nil {
 		c.String(http.StatusInternalServerError, err.Error())
 		return
@@ -219,7 +209,7 @@ func generateNonexistentComposerUuid(server *Server) (string, error) {
 	return "", errors.New("Somehow unable to generate new uuid for composer.")
 }
 
-func generateNonexistentSheetUuid(server *Server) (string, error) {
+func GenerateNonexistentSheetUuid(server *Server) (string, error) {
 	for i := 0; i < 10; i++ {
 		uuid := xid.New().String()
 		exists, err := models.ExistsSheet(server.DB, uuid)
