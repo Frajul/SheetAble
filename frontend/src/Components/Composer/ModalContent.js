@@ -37,7 +37,7 @@ function ModalContent(props) {
 
   const sendRequest = () => {
     props.editComposer(
-      props.composer.safe_name,
+      props.composer.uuid,
       name,
       epoch,
       uploadFile,

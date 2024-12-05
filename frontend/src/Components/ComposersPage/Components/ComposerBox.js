@@ -11,7 +11,7 @@ function ComposerBox({ composer }) {
     <li
       key={composer.name}
       className="li-height"
-      onClick={() => history.push(`/composer/${composer.safe_name}`)}
+      onClick={() => history.push(`/composer/${composer.uuid}`)}
     >
       <div className="box-container remove_shadow">
         <img className="thumbnail-image" src={imgUrl} alt="portrait" />

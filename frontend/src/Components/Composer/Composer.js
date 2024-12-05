@@ -30,10 +30,10 @@ function Composer({
   deleteComposer,
   resetData,
 }) {
-  const { safeComposerName } = useParams();
+  const { composerUuid } = useParams();
 
   const [composer, setComposer] = useState(
-    findComposerByPages(safeComposerName, composerPages)
+    findComposerByPages(composerUuid, composerPages)
   );
 
   const [inRequest, setInRequest] = useState(false);
@@ -60,11 +60,11 @@ function Composer({
     const data = {
       page: 1,
       sortBy: "updated_at desc",
-      composer: safeComposerName,
+      composer: composerUuid,
     };
 
     getSheetPage(data, () => {
-      setComposer(findComposerByPages(safeComposerName, composerPages));
+      setComposer(findComposerByPages(composerUuid, composerPages));
     });
   };
 
@@ -86,7 +86,7 @@ function Composer({
   };
 
   useEffect(() => {
-    setComposer(findComposerByPages(safeComposerName, composerPages));
+    setComposer(findComposerByPages(composerUuid, composerPages));
     if (composer !== undefined && composer.sheets !== undefined) {
       setInRequest(false);
       setLoading(false);
@@ -130,7 +130,7 @@ function Composer({
               className="delete"
               disabled={composer.name === "Unknown"}
               onClick={() =>
-                deleteComposer(composer.safe_name, () => {
+                deleteComposer(composer.uuid, () => {
                   resetData();
                   window.location.replace("/");
                 })

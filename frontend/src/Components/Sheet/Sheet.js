@@ -77,7 +77,7 @@ function Sheet({
     return () => window.removeEventListener("resize", updateMedia);
   });
 
-  let { safeSheetName, safeComposerName } = useParams();
+  let { sheetUuid } = useParams();
 
   const getSheetDataReq = async (_callback) => {
     if (
@@ -122,8 +122,8 @@ function Sheet({
 
   const [pdf, setpdf] = useState(undefined);
 
-  const bySheetPages = findSheetByPages(safeSheetName, sheetPages);
-  const bySheets = findSheetBySheets(safeSheetName, sheets);
+  const bySheetPages = findSheetByPages(sheetUuid, sheetPages);
+  const bySheets = findSheetBySheets(sheetUuid, sheets);
 
   const [sheet] = useState(
     bySheetPages === undefined
@@ -133,8 +133,11 @@ function Sheet({
       : bySheetPages
   );
 
-  const byComposerPages = findComposerByPages(safeComposerName, composerPages);
-  const byComposers = findComposerByComposers(safeComposerName, composers);
+  const byComposerPages = findComposerByPages(
+    sheet.composerUuid,
+    composerPages
+  );
+  const byComposers = findComposerByComposers(sheet.composerUuid, composers);
 
   const [composer] = useState(
     byComposerPages === undefined
@@ -146,7 +149,7 @@ function Sheet({
 
   const pdfRequest = () => {
     axios
-      .get(`/sheet/pdf/${safeComposerName}/${safeSheetName}`, {
+      .get(`/sheet/pdf/${sheet.composerUuid}/${sheetUuid}`, {
         responseType: "arraybuffer",
       })
       .then((res) => {
@@ -205,11 +208,14 @@ function Sheet({
   const [copyText, setCopyText] = useState("Click to Copy");
 
   const handleClick = () => {
-    navigator.clipboard.writeText(window.location.href).then(()=>{
-      setCopyText("Copied ✓")
-    }).catch(()=>{
-      setCopyText("Click to Copy")
-    });
+    navigator.clipboard
+      .writeText(window.location.href)
+      .then(() => {
+        setCopyText("Copied ✓");
+      })
+      .catch(() => {
+        setCopyText("Click to Copy");
+      });
   };
 
   const [editModal, setEditModal] = useState(false);
@@ -327,7 +333,7 @@ function Sheet({
 
             <div
               className="doc_box composer_info remove_shadow"
-              onClick={() => history.push(`/composer/${composer.safe_name}`)}
+              onClick={() => history.push(`/composer/${composer.uuid}`)}
             >
               <img className="composer_img" src={imgUrl} alt="Portrait" />
               <div className="composer_info_text_wrapper">
@@ -340,7 +346,7 @@ function Sheet({
             <InformationCard
               infoText={sheet.information_text}
               tags={sheet.tags}
-              sheetName={sheet.safe_sheet_name}
+              sheetName={sheet.uuid}
             />
           </div>
         </div>

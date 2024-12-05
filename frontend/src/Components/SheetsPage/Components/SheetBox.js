@@ -18,7 +18,7 @@ function SheetBox({ sheet }) {
       <div className="box-container remove_shadow">
         <img
           className="thumbnail-image"
-          src={`${axios.defaults.baseURL}/sheet/thumbnail/${sheet.safe_sheet_name}`}
+          src={`${axios.defaults.baseURL}/sheet/thumbnail/${sheet.uuid}`}
           alt="Sheet Thumbnail"
         />
         <div className="sheet-name-container">

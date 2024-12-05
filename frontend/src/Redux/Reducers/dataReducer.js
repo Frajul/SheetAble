@@ -104,7 +104,7 @@ export default function (state = initialState, action) {
         if (!state.composerPages.hasOwnProperty(key)) continue;
         const page = state.composerPages[key];
         const result = page.find(
-          (composer) => composer.safe_name === action.composer
+          (composer) => composer.uuid === action.composer
         );
 
         if (result !== undefined) {
@@ -155,13 +155,13 @@ export default function (state = initialState, action) {
         composers: action.payload,
         loading: false,
       };
-    
+
     case SET_USERS_DATA:
       return {
         ...state.composerPage,
         usersData: action.payload,
-        loading: false
-      }
+        loading: false,
+      };
 
     case RESET_DATA:
       return {

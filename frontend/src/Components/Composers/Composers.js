@@ -15,7 +15,7 @@ function Composers(props) {
     return (
       <li
         key={composer.name}
-        onClick={() => history.push(`/composer/${composer.safe_name}`)}
+        onClick={() => history.push(`/composer/${composer.uuid}`)}
       >
         <div className="box-container-comp remove_shadow">
           <img className="thumbnail-image-comp" src={imgUrl} alt="Portrait" />

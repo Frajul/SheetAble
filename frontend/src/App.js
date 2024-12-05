@@ -83,20 +83,16 @@ function App() {
               <Switch>
                 <Route exact path="/" component={HomePageProvider} />
                 <Route exact path="/upload" component={UploadPage} />
+                <Route exact path="/sheet/:sheetUuid" component={Sheet} />
                 <Route
                   exact
-                  path="/sheet/:safeComposerName/:safeSheetName"
-                  component={Sheet}
-                />
-                <Route
-                  exact
-                  path="/sheetviewer/:safeComposerName/:safeSheetName"
+                  path="/sheetviewer/:sheetUuid"
                   component={SheetViewer}
                 />
                 <Route exact path="/search" component={SearchPage} />
                 <Route
                   exact
-                  path="/composer/:safeComposerName"
+                  path="/composer/:composerUuid"
                   component={Composer}
                 />
                 <Route exact path="/sheets" component={SheetsPage} />

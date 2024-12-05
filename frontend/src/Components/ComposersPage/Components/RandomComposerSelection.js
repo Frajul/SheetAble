@@ -57,7 +57,7 @@ function RandomComposerSelection({ composerPages, page }) {
               className="rand-img cursor"
               src={imgUrl}
               alt="Portrait"
-              onClick={() => history.push(`/composer/${composer.safe_name}`)}
+              onClick={() => history.push(`/composer/${composer.uuid}`)}
             />
             <div className="sheet-name-container">
               <span className="sheet-name">{composer.name}</span>

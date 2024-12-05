@@ -83,7 +83,7 @@ function SheetViewer({
     }
   };
 
-  let { safeSheetName, safeComposerName } = useParams();
+  let { sheetUuid } = useParams();
 
   const getSheetDataReq = async (_callback) => {
     if (
@@ -130,8 +130,8 @@ function SheetViewer({
   const [pdf, setPdf] = useState(undefined);
   const [twoPageMode, setTwoPageMode] = useState(true);
 
-  const bySheetPages = findSheetByPages(safeSheetName, sheetPages);
-  const bySheets = findSheetBySheets(safeSheetName, sheets);
+  const bySheetPages = findSheetByPages(sheetUuid, sheetPages);
+  const bySheets = findSheetBySheets(sheetUuid, sheets);
 
   const [sheet] = useState(
     bySheetPages === undefined
@@ -141,21 +141,10 @@ function SheetViewer({
       : bySheetPages
   );
 
-  const byComposerPages = findComposerByPages(safeComposerName, composerPages);
-  const byComposers = findComposerByComposers(safeComposerName, composers);
-
-  const [composer] = useState(
-    byComposerPages === undefined
-      ? byComposers === undefined
-        ? getComposerDataReq()
-        : byComposers
-      : byComposerPages
-  );
-
   const pdfRequest = () => {
     console.log("Pdf request");
     axios
-      .get(`/sheet/pdf/${safeComposerName}/${safeSheetName}`, {
+      .get(`/sheet/pdf/${sheetUuid}`, {
         responseType: "arraybuffer",
       })
       .then((res) => {
@@ -324,7 +313,7 @@ function SheetViewer({
     window.addEventListener("resize", updateDocumentSize);
     window.addEventListener("resize", updateMedia);
 
-    if (safeComposerName && safeSheetName && !pdfLoading) {
+    if (sheetUuid && !pdfLoading) {
       setPdfLoading(true);
       pdfRequest();
     }

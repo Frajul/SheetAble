@@ -33,7 +33,7 @@ function ModalContent(props) {
   const [uploadFile, setUploadFile] = useState(
     dataURLtoFile(
       arrayBufferToBase64(props.uploadFile.data, "pdf"),
-      `${props.sheet.safe_sheet_name}.pdf`
+      `${props.sheet.uuid}.pdf`
     )
   );
 
@@ -117,14 +117,14 @@ function ModalContent(props) {
       uploadFile: uploadFile,
     };
 
-    props.updateSheet(newData, props.sheet.safe_sheet_name, () => {
+    props.updateSheet(newData, props.sheet.uuid, () => {
       props.resetData();
       props.onClose();
     });
   };
 
   const sendDeleteRequest = () => {
-    props.deleteSheet(props.sheet.safe_sheet_name, () => {
+    props.deleteSheet(props.sheet.uuid, () => {
       props.resetData();
       props.onClose();
     });
