@@ -1,17 +1,16 @@
 package utils
 
 import (
+	"errors"
+	"log"
+	"os"
 	"path"
 
-	"log"
-
-	"github.com/h2non/bimg"
-
 	. "github.com/SheetAble/SheetAble/backend/api/config"
+	"github.com/h2non/bimg"
 )
 
-// POST request onto pdf creation
-func CreateThumbnailFromPdf(pdf_file_path string, name string) (err error) {
+func CreateThumbnailFromPdf(pdf_file_path string, uuid string) (err error) {
 	log.Printf("Reading pdf file path: %s", pdf_file_path)
 	buffer, err := bimg.Read(pdf_file_path)
 	if err != nil {
@@ -30,7 +29,7 @@ func CreateThumbnailFromPdf(pdf_file_path string, name string) (err error) {
 	}
 
 	log.Printf("Successfully converted and rescaled")
-	err = bimg.Write(path.Join(Config().ConfigPath, "sheets/thumbnails", name+".jpg"), image_resized)
+	err = bimg.Write(path.Join(Config().ConfigPath, "sheets/thumbnails", uuid+".jpg"), image_resized)
 	log.Printf("Written thumbnail")
 
 	if err != nil {

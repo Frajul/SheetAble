@@ -70,11 +70,10 @@ func (server *Server) SyncSheets(c *gin.Context, libraryPath string) {
 	// Remove sheets from database which have no local file
 	if len(orphanDbSheets) != 0 {
 		fmt.Printf("Library sync found %v sheets in database but not in local folder structure, removing...\n", len(orphanDbSheets))
-		for _, sheetAndComposer := range orphanDbSheets {
-			err := models.DeleteSheet(server.DB, sheetAndComposer.Uuid)
+		for _, sheet := range orphanDbSheets {
+			err := models.DeleteSheet(server.DB, sheet.Uuid)
 			if err != nil {
 				utils.DoError(c, http.StatusInternalServerError, fmt.Errorf("unable to delete sheet: %v", err.Error()))
-				return
 			}
 		}
 	}
@@ -118,14 +117,13 @@ func listSheetsFromFiles(libraryPath string) []SimpleSheet {
 			composer := composerEntry.Name()
 
 			composerPath := path.Join(libraryPath, composer)
-			err := filepath.WalkDir(composerPath, func(p string, d os.DirEntry, err error) error {
+			err := filepath.WalkDir(composerPath, func(file string, d os.DirEntry, err error) error {
 				if err != nil {
 					return err
 				}
 
 				// Check if it's a regular file and has a .pdf extension
 				if !d.IsDir() && strings.HasSuffix(d.Name(), ".pdf") {
-					file := path.Join(libraryPath, composer, d.Name())
 					sheetName := strings.TrimSuffix(filepath.Base(file), ".pdf")
 
 					sheets = append(sheets, SimpleSheet{File: file, SheetName: sheetName, ComposerName: composer})

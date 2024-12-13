@@ -80,7 +80,7 @@ func DeleteSheet(db *gorm.DB, uuid string) error {
 		return result.Error
 	}
 
-	path := path.Join(Config().ConfigPath, "sheets/thumbnails", sheet.Uuid+".png")
+	path := path.Join(Config().ConfigPath, "sheets/thumbnails", uuid+".png")
 	e := os.Remove(path)
 	if e != nil {
 		return e
