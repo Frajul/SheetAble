@@ -8,13 +8,11 @@ require (
 	github.com/GeertJohan/go.rice v1.0.3
 	github.com/badoux/checkmail v1.2.4
 	github.com/dgrijalva/jwt-go v3.2.0+incompatible
-	github.com/fiam/gounidecode v0.0.0-20150629112515-8deddbd03fec
 	github.com/gin-gonic/gin v1.10.0
 	github.com/golobby/config/v3 v3.4.2
 	github.com/google/uuid v1.3.0
 	github.com/gorilla/handlers v1.5.2
 	github.com/jinzhu/gorm v1.9.16
-	github.com/kennygrant/sanitize v1.2.4
 	github.com/lib/pq v1.10.9
 	github.com/rs/cors v1.11.1
 	github.com/stretchr/testify v1.9.0

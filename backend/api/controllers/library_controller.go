@@ -43,7 +43,7 @@ func (server *Server) SyncSheets(c *gin.Context, libraryPath string) {
 		return localSheets[i].File < localSheets[j].File
 	})
 
-	dbSheets, err := ListAllSafeSheetNamesAndComposers(server.DB)
+	dbSheets, err := listAllSimpleSheetsInDB(server.DB)
 	if err != nil {
 		utils.DoError(c, http.StatusInternalServerError, fmt.Errorf("unable to retrieve all sheets from db: %v", err.Error()))
 		return
@@ -52,7 +52,7 @@ func (server *Server) SyncSheets(c *gin.Context, libraryPath string) {
 	fmt.Printf("Local sheets: %v\n", len(localSheets))
 	fmt.Printf("Db sheets: %v\n", len(*dbSheets))
 
-	orphanLocalSheets, orphanDbSheets := findOrphansInSortedComposerSheetNames(localSheets, *dbSheets)
+	orphanLocalSheets, orphanDbSheets := findOrphans(localSheets, *dbSheets)
 	// Add files to database which are not listed there
 	if len(orphanLocalSheets) != 0 {
 		fmt.Printf("Library sync found %v sheets in folder structure but not in database, adding...\n", len(orphanLocalSheets))
@@ -80,9 +80,9 @@ func (server *Server) SyncSheets(c *gin.Context, libraryPath string) {
 	}
 }
 
-func findOrphansInSortedComposerSheetNames(left, right []ComposerSheetSafeNames) ([]ComposerSheetSafeNames, []ComposerSheetSafeNames) {
+func findOrphans(left, right []SimpleSheet) ([]SimpleSheet, []SimpleSheet) {
 	// TODO: improve speed by using pointers?
-	var orphansLeft, orphansRight []ComposerSheetSafeNames
+	var orphansLeft, orphansRight []SimpleSheet
 	indexLeft, indexRight := 0, 0
 	for indexLeft < len(left) && indexRight < len(right) {
 		if left[indexLeft].File == right[indexRight].File {
@@ -106,13 +106,13 @@ func findOrphansInSortedComposerSheetNames(left, right []ComposerSheetSafeNames)
 	return orphansLeft, orphansRight
 }
 
-func listSheetsFromFiles(libraryPath string) []ComposerSheetSafeNames {
+func listSheetsFromFiles(libraryPath string) []SimpleSheet {
 	composerEntries, err := os.ReadDir(libraryPath)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	sheets := []ComposerSheetSafeNames{}
+	sheets := []SimpleSheet{}
 	for _, composerEntry := range composerEntries {
 		if composerEntry.IsDir() {
 			composer := composerEntry.Name()
@@ -128,7 +128,7 @@ func listSheetsFromFiles(libraryPath string) []ComposerSheetSafeNames {
 					file := path.Join(libraryPath, composer, d.Name())
 					sheetName := strings.TrimSuffix(filepath.Base(file), ".pdf")
 
-					sheets = append(sheets, ComposerSheetSafeNames{File: file, SheetName: sheetName, ComposerName: composer})
+					sheets = append(sheets, SimpleSheet{File: file, SheetName: sheetName, ComposerName: composer})
 				}
 
 				return nil
@@ -143,23 +143,23 @@ func listSheetsFromFiles(libraryPath string) []ComposerSheetSafeNames {
 	return sheets
 }
 
-type ComposerSheetSafeNames struct {
+type SimpleSheet struct {
 	Uuid         string
 	File         string
 	SheetName    string
 	ComposerName string
 }
 
-func ListAllSafeSheetNamesAndComposers(db *gorm.DB) (*[]ComposerSheetSafeNames, error) {
+func listAllSimpleSheetsInDB(db *gorm.DB) (*[]SimpleSheet, error) {
 	var sheets []models.Sheet
-	var toReturn []ComposerSheetSafeNames
+	var toReturn []SimpleSheet
 	err := db.Where("was_uploaded = false").Order("file asc").Find(&sheets).Error
 	if err != nil {
 		return &toReturn, err
 	}
 
 	for _, sheet := range sheets {
-		toReturn = append(toReturn, ComposerSheetSafeNames{Uuid: sheet.Uuid, File: sheet.File})
+		toReturn = append(toReturn, SimpleSheet{Uuid: sheet.Uuid, File: sheet.File})
 	}
 
 	return &toReturn, nil

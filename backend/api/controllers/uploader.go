@@ -29,7 +29,7 @@ import (
 // Structs for handling the response on the Open Opus API
 
 type Response struct {
-	Composers *[]Comp `json: "composers"`
+	Composers *[]Comp `json:"composers"`
 }
 
 // Composer from OpenOpusAPI
