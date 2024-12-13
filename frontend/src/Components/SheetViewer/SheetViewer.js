@@ -140,6 +140,11 @@ function SheetViewer({
         : bySheets
       : bySheetPages
   );
+  const updateSheetLastOpened = () => {
+    axios.post(`/sheet/${sheetUuid}/updateLastOpened`).catch((err) => {
+      console.log("Error updating lastOpened of sheet: " + err);
+    });
+  };
 
   const pdfRequest = () => {
     console.log("Pdf request");
@@ -149,6 +154,7 @@ function SheetViewer({
       })
       .then((res) => {
         setPdf(res);
+        updateSheetLastOpened();
       })
       .catch((err) => {
         if (err.request.status === 401) {

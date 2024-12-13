@@ -53,6 +53,7 @@ func (server *Server) SetupRouter() {
 	secureApi.GET("/search/composers/:searchValue", server.SearchComposers)
 	secureApi.PUT("/sheet/:sheetUuid/info", server.UpdateSheetInformationText)
 	secureApi.POST("/sheet/:sheetUuid/info", server.UpdateSheetInformationText)
+	secureApi.POST("/sheet/:sheetUuid/updateLastOpened", server.UpdateSheetLastOpened)
 
 	// Sheet tag routes
 	secureApi.DELETE("/tag/sheet/:sheetUuid", server.DeleteTag)

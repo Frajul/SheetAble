@@ -43,14 +43,11 @@ function SheetsPage({
 
     const data = {
       page: sheetPage,
-      sortBy: "updated_at desc",
+      sortBy: "last_opened desc",
     };
 
-    if (sheetPages === undefined || sheetPages[sheetPage] === undefined) {
-      getSheetPage(data, () => setLoading(false));
-    } else {
-      setLoading(false);
-    }
+    // Reload sheets every time so changes in order when sheet was opened can be seen
+    getSheetPage(data, () => setLoading(false));
   };
 
   const svgDec = (e) => {

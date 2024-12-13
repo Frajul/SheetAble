@@ -89,7 +89,7 @@ export const getSheetPage =
     bodyFormData.append("limit", 50);
     bodyFormData.append(
       "sort_by",
-      data.sortBy === undefined ? "updated_at desc" : data.sortBy
+      data.sortBy === undefined ? "last_opened desc" : data.sortBy
     );
 
     if (data.composer !== undefined) {
@@ -397,16 +397,17 @@ export const editInfoText = (infoText, sheetName, _callback) => (dispatch) => {
 };
 
 export const getUsersData = () => (dispatch) => {
-  dispatch({ type: LOADING_DATA })
+  dispatch({ type: LOADING_DATA });
   axios
     .get("/users")
-    .then(res => {
+    .then((res) => {
       dispatch({
         type: SET_USERS_DATA,
-        payload: res.data
-      })
-    }).catch(err => checkAuthErr(err, dispatch))
-}
+        payload: res.data,
+      });
+    })
+    .catch((err) => checkAuthErr(err, dispatch));
+};
 
 export const resetData = () => (dispatch) => {
   dispatch({ type: RESET_DATA });

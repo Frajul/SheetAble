@@ -26,6 +26,7 @@ type Sheet struct {
 	UploaderID      uint32         `gorm:"not null" json:"uploader_id"`
 	CreatedAt       time.Time      `gorm:"default:CURRENT_TIMESTAMP" json:"created_at"`
 	UpdatedAt       time.Time      `gorm:"default:CURRENT_TIMESTAMP" json:"updated_at"`
+	LastOpened      time.Time      `gorm:"default:CURRENT_TIMESTAMP" json:"last_opened"`
 	Tags            pq.StringArray `gorm:"type:text[]" json:"tags"`
 	InformationText string         `json:"information_text"`
 }
@@ -39,6 +40,7 @@ func NewSheet(uuid string, name string, composerUuid string, file string, wasUpl
 		WasUploaded:     wasUploaded,
 		CreatedAt:       time.Now(),
 		UpdatedAt:       time.Now(),
+		LastOpened:      time.Now(),
 		Tags:            pq.StringArray{},
 		ReleaseDate:     createDate("1999-12-31"),
 		InformationText: "",
@@ -166,6 +168,11 @@ func (s *Sheet) AppendTag(db *gorm.DB, tag string) error {
 	newArray := append(s.Tags, tag)
 
 	err := db.Model(&s).Update(Sheet{Tags: newArray}).Error
+	return err
+}
+
+func SetSheetLastOpenedToNow(db *gorm.DB, sheetUuid string) error {
+	err := db.Model(Sheet{Uuid: sheetUuid}).Update(Sheet{LastOpened: time.Now()}).Error
 	return err
 }
 

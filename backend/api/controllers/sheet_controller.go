@@ -69,6 +69,27 @@ func (server *Server) GetSheet(c *gin.Context) {
 }
 
 /*
+Update last opened timestamp of sheet to now.
+Example request:
+
+	POST /sheet/<uuid>/UpdateSheetLastOpened
+*/
+func (server *Server) UpdateSheetLastOpened(c *gin.Context) {
+	sheetUuid := c.Param("sheetUuid")
+	if sheetUuid == "" {
+		utils.DoError(c, http.StatusBadRequest, errors.New("no sheet uuid given"))
+		return
+	}
+
+	err := models.SetSheetLastOpenedToNow(server.DB, sheetUuid)
+	if err != nil {
+		utils.DoError(c, http.StatusInternalServerError, fmt.Errorf("unable to update last opened of sheet: %v", err.Error()))
+		return
+	}
+	c.JSON(http.StatusOK, "Successfully updated last opened value of sheet")
+}
+
+/*
 Serve the PDF file
 Example request:
 
