@@ -19,7 +19,6 @@ import (
 	"github.com/SheetAble/SheetAble/backend/api/forms"
 	"github.com/gin-gonic/gin"
 	"github.com/jinzhu/gorm"
-	"github.com/rs/xid"
 
 	. "github.com/SheetAble/SheetAble/backend/api/config"
 	"github.com/SheetAble/SheetAble/backend/api/models"
@@ -71,7 +70,7 @@ func (server *Server) UploadFile(c *gin.Context) {
 	utils.CreateDir(prePath)
 	utils.CreateDir(uploadPath)
 
-	sheetUuid, err := GenerateNonexistentSheetUuid(server)
+	sheetUuid, err := models.GenerateNonexistentSheetUuid(server.DB)
 	if err != nil {
 		utils.DoError(c, http.StatusInternalServerError, fmt.Errorf("unable to check existing uuids: %v", err.Error()))
 		return
@@ -90,32 +89,11 @@ func (server *Server) UploadSheet(c *gin.Context, sheetName string, sheetUuid st
 	thumbnailPath := path.Join(Config().ConfigPath, "sheets/thumbnails")
 	utils.CreateDir(thumbnailPath)
 
-	composerAlreadyExists := false
-	composer, err := models.FindComposerByNameCaseInsensitive(server.DB, composerName)
-	if err == nil {
-		composerAlreadyExists = true
-	} else if !gorm.IsRecordNotFoundError(err) {
-		utils.DoError(c, http.StatusInternalServerError, fmt.Errorf("unable to check composer existence: %v", err.Error()))
+	composer, err := server.findComposerOrNew(composerName)
+	if err != nil {
+		utils.DoError(c, http.StatusInternalServerError, fmt.Errorf("error finding or creating composer: %v", err.Error()))
 		return
 	}
-
-	if !composerAlreadyExists {
-		opusComposer, err := findComposerInOpenOpus(composerName)
-		if err != nil {
-			utils.DoError(c, http.StatusInternalServerError, fmt.Errorf("unable to check openopus: %v", err.Error()))
-			return
-		}
-
-		composerUuid, err := generateNonexistentComposerUuid(server)
-
-		if err != nil {
-			utils.DoError(c, http.StatusInternalServerError, fmt.Errorf("unable to check existing uuids: %v", err.Error()))
-			return
-		}
-		composer = models.NewComposer(composerUuid, opusComposer.CompleteName, opusComposer.Portrait, opusComposer.Epoch)
-		composer.SaveToDb(server.DB)
-	}
-
 	sheet := models.NewSheet(sheetUuid, sheetName, composer.Uuid, filePath, wasUploaded)
 
 	err = sheet.SaveToDb(server.DB)
@@ -130,6 +108,40 @@ func (server *Server) UploadSheet(c *gin.Context, sheetName string, sheetUuid st
 		return
 	}
 	c.JSON(http.StatusAccepted, "File uploaded successfully")
+}
+
+func (server *Server) findComposerOrNew(composerName string) (*models.Composer, error) {
+	composer, err := models.FindComposerByNameCaseInsensitive(server.DB, composerName)
+	if err == nil {
+		return composer, nil
+	} else if !gorm.IsRecordNotFoundError(err) {
+		return nil, err
+	}
+
+	opusComposer, err := findComposerInOpenOpus(composerName)
+	if err != nil {
+		return nil, err
+	}
+
+	// Search again for existing composer, now with name from open opus
+	composer, err = models.FindComposerByNameCaseInsensitive(server.DB, opusComposer.CompleteName)
+	if err == nil {
+		return composer, nil
+	} else if !gorm.IsRecordNotFoundError(err) {
+		return nil, err
+	}
+
+	// Composer does not exist, generate new composer
+	composerUuid, err := models.GenerateNonexistentComposerUuid(server.DB)
+	if err != nil {
+		return nil, err
+	}
+	composer = models.NewComposer(composerUuid, opusComposer.CompleteName, opusComposer.Portrait, opusComposer.Epoch)
+	err = composer.SaveToDb(server.DB)
+	if err != nil {
+		return nil, err
+	}
+	return composer, nil
 }
 
 func (server *Server) UpdateSheet(c *gin.Context) {
@@ -192,36 +204,6 @@ func findComposerInOpenOpus(composerName string) (*Comp, error) {
 	}
 
 	return &composers[0], nil
-}
-
-func generateNonexistentComposerUuid(server *Server) (string, error) {
-	for i := 0; i < 10; i++ {
-		uuid := xid.New().String()
-		exists, err := models.ExistsComposer(server.DB, uuid)
-		if err != nil {
-			return "", err
-		}
-
-		if !exists {
-			return uuid, nil
-		}
-	}
-	return "", errors.New("Somehow unable to generate new uuid for composer.")
-}
-
-func GenerateNonexistentSheetUuid(server *Server) (string, error) {
-	for i := 0; i < 10; i++ {
-		uuid := xid.New().String()
-		exists, err := models.ExistsSheet(server.DB, uuid)
-		if err != nil {
-			return "", err
-		}
-
-		if !exists {
-			return uuid, nil
-		}
-	}
-	return "", errors.New("Somehow unable to generate new uuid for sheet.")
 }
 
 // func checkFileExists(pathName string, sheetName string) (string, error) {

@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/jinzhu/gorm"
+	"github.com/rs/xid"
 )
 
 type Composer struct {
@@ -47,7 +48,7 @@ func (composer *Composer) UpdateAtDb(db *gorm.DB) error {
 }
 
 func DeleteComposer(db *gorm.DB, uuid string) error {
-	err := db.Where("uuid := ?", uuid).Delete(&Composer{}).Error
+	err := db.Where("uuid = ?", uuid).Delete(&Composer{}).Error
 
 	if err != nil {
 		if gorm.IsRecordNotFoundError(err) {
@@ -57,28 +58,35 @@ func DeleteComposer(db *gorm.DB, uuid string) error {
 	}
 
 	// Swap sheets composer to Unknown
-	err = assureUnknownComposerExists(db)
+	unknownUuid, err := assureUnknownComposerExists(db)
 	if err != nil {
 		return err
 	}
-	err = db.Exec("UPDATE 'sheets' SET 'composer' = '' WHERE (composer := ?);", uuid).Error
+	err = db.Exec("UPDATE sheets SET composer_uuid = ? WHERE composer_uuid = ?", unknownUuid, uuid).Error
 	if err != nil {
 		return err
 	}
 	return nil
 }
 
-func assureUnknownComposerExists(db *gorm.DB) error {
-	unknownComposerExists, err := ExistsComposer(db, "")
-	if err != nil {
-		return err
+// Returns uuid of the unknown composer
+func assureUnknownComposerExists(db *gorm.DB) (string, error) {
+	composer, err := FindComposerByNameCaseInsensitive(db, "Unknown")
+	if err == nil {
+		return composer.Uuid, nil // Unknown exists
 	}
-	if !unknownComposerExists {
-		composer := NewComposer("", "Unknown", "Unknown", "https://icon-library.com/images/unknown-person-icon/unknown-person-icon-4.jpg")
-		err = composer.SaveToDb(db)
-		return err
+	if !gorm.IsRecordNotFoundError(err) {
+		return "", err // error
 	}
-	return nil
+
+	composerUuid, err := GenerateNonexistentComposerUuid(db)
+	if err == nil {
+		return composerUuid, nil
+	}
+
+	composer = NewComposer(composerUuid, "Unknown", "Unknown", "https://icon-library.com/images/unknown-person-icon/unknown-person-icon-4.jpg")
+	err = composer.SaveToDb(db)
+	return composerUuid, err
 }
 
 func IsComposerUnreferenced(db *gorm.DB, uuid string) (bool, error) {
@@ -98,7 +106,7 @@ func SearchComposers(db *gorm.DB, searchValue string) ([]*Composer, error) {
 	return composers, err
 }
 
-func ListComposers(db *gorm.DB, pagination Pagination) (*Pagination, error) {
+func ListComposersPaginated(db *gorm.DB, pagination Pagination) (*Pagination, error) {
 	var composers []*Composer
 	err := db.Scopes(paginate(composers, &pagination, db)).Find(&composers).Error
 	if err != nil {
@@ -107,6 +115,12 @@ func ListComposers(db *gorm.DB, pagination Pagination) (*Pagination, error) {
 	pagination.Rows = composers
 
 	return &pagination, nil
+}
+
+func ListComposers(db *gorm.DB) ([]*Composer, error) {
+	var composers []*Composer
+	err := db.Find(&composers).Error
+	return composers, err
 }
 
 func ExistsComposer(db *gorm.DB, uuid string) (bool, error) {
@@ -136,4 +150,19 @@ func FindComposerByNameCaseInsensitive(db *gorm.DB, name string) (*Composer, err
 		return &Composer{}, err
 	}
 	return &composer, nil
+}
+
+func GenerateNonexistentComposerUuid(db *gorm.DB) (string, error) {
+	for i := 0; i < 10; i++ {
+		uuid := xid.New().String()
+		exists, err := ExistsComposer(db, uuid)
+		if err != nil {
+			return "", err
+		}
+
+		if !exists {
+			return uuid, nil
+		}
+	}
+	return "", errors.New("Somehow unable to generate new uuid for composer.")
 }

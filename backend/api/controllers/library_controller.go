@@ -82,7 +82,7 @@ func (server *Server) syncSheets(c *gin.Context, libraryPath string) {
 	if len(orphanLocalSheets) != 0 {
 		fmt.Printf("Library sync found %v sheets in folder structure but not in database, adding...\n", len(orphanLocalSheets))
 		for _, sheet := range orphanLocalSheets {
-			sheetUuid, err := GenerateNonexistentSheetUuid(server)
+			sheetUuid, err := models.GenerateNonexistentSheetUuid(server.DB)
 			if err != nil {
 				utils.DoError(c, http.StatusInternalServerError, fmt.Errorf("unable to check existing uuids: %v", err.Error()))
 				return

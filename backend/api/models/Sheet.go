@@ -10,6 +10,7 @@ import (
 	. "github.com/SheetAble/SheetAble/backend/api/config"
 	"github.com/SheetAble/SheetAble/backend/api/utils"
 	"github.com/lib/pq"
+	"github.com/rs/xid"
 
 	"github.com/jinzhu/gorm"
 )
@@ -94,14 +95,15 @@ func DeleteSheet(db *gorm.DB, uuid string) error {
 		}
 	}
 
-	// Delete unknown composer if not referenced anymore
-	if sheet.ComposerUuid != "" {
-		isUnreferenced, err := IsComposerUnreferenced(db, sheet.ComposerUuid)
+	// Delete composer if not referenced anymore
+	isUnreferenced, err := IsComposerUnreferenced(db, sheet.ComposerUuid)
+	if err != nil {
+		return err
+	}
+	if isUnreferenced {
+		err = DeleteComposer(db, sheet.ComposerUuid)
 		if err != nil {
 			return err
-		}
-		if isUnreferenced {
-			DeleteComposer(db, sheet.ComposerUuid)
 		}
 	}
 
@@ -133,22 +135,6 @@ func FindSheetByUuid(db *gorm.DB, uuid string) (*Sheet, error) {
 		return &Sheet{}, result.Error
 	}
 	return &sheet, nil
-}
-
-func GetAllSheets(db *gorm.DB) (*[]Sheet, error) {
-	/*
-		This method will return max 20 sheets, to find more or specific one you need to specify it.
-		Currently it sorts it by the newest updates
-	*/
-	var err error
-	sheets := []Sheet{}
-
-	err = db.Order("updated_at desc").Limit(20).Find(&sheets).Error
-
-	if err != nil {
-		return &[]Sheet{}, err
-	}
-	return &sheets, err
 }
 
 func ListSheets(db *gorm.DB, pagination Pagination, composerUuid string) (*Pagination, error) {
@@ -220,4 +206,19 @@ func FindSheetByTag(db *gorm.DB, tag string) ([]*Sheet, error) {
 	}
 
 	return affectedSheets, nil
+}
+
+func GenerateNonexistentSheetUuid(db *gorm.DB) (string, error) {
+	for i := 0; i < 10; i++ {
+		uuid := xid.New().String()
+		exists, err := ExistsSheet(db, uuid)
+		if err != nil {
+			return "", err
+		}
+
+		if !exists {
+			return uuid, nil
+		}
+	}
+	return "", errors.New("Somehow unable to generate new uuid for sheet.")
 }

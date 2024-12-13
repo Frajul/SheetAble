@@ -40,7 +40,7 @@ func (server *Server) GetComposersPage(c *gin.Context) {
 		Page:  form.Page,
 	}
 
-	pageNew, err := models.ListComposers(server.DB, pagination)
+	pageNew, err := models.ListComposersPaginated(server.DB, pagination)
 	if err != nil {
 		utils.DoError(c, http.StatusInternalServerError, err)
 		return
