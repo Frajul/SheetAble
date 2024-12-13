@@ -254,3 +254,8 @@ p:hover {
   width: calc(100% - 240px);
   left: 240px;
 }
+
+.sidebar ~ .home_content {
+  width: calc(100% - 78px);
+  left: 78px;
+}
