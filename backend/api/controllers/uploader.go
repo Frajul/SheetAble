@@ -89,6 +89,7 @@ func (server *Server) UploadSheet(c *gin.Context, sheetName string, sheetUuid st
 	thumbnailPath := path.Join(Config().ConfigPath, "sheets/thumbnails")
 	utils.CreateDir(thumbnailPath)
 
+	// TODO: somehow some composers end up unreferenced
 	composer, err := server.findComposerOrNew(composerName)
 	if err != nil {
 		utils.DoError(c, http.StatusInternalServerError, fmt.Errorf("error finding or creating composer: %v", err.Error()))

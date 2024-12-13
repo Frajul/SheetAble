@@ -19,6 +19,7 @@ import (
 
 // This syncs sheet files in sheets/local-sheets folder with the database
 // and does some clean up jobs
+// TODO: only allow one of these jobs simultaniously
 func (server *Server) SyncLibrary(c *gin.Context) {
 	fmt.Printf("Syncing library...\n")
 
