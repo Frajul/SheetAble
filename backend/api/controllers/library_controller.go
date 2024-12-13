@@ -32,12 +32,37 @@ func (server *Server) SyncLibrary(c *gin.Context) {
 		return
 	}
 
-	server.SyncSheets(c, libraryPath)
+	log.Println("Syncing sheets...")
+	server.syncSheets(c, libraryPath)
+
+	// Actually only needed when something went wrong
+	log.Println("Fixing missing thumbnails...")
+	server.fixMissingThumbnails(c)
 
 	c.String(http.StatusOK, "Sync successfull")
 }
 
-func (server *Server) SyncSheets(c *gin.Context, libraryPath string) {
+func (server *Server) fixMissingThumbnails(c *gin.Context) {
+	thumbnailPath := path.Join(Config().ConfigPath, "sheets/thumbnails")
+	utils.CreateDir(thumbnailPath)
+
+	dbSheets, err := listAllSimpleSheetsInDB(server.DB)
+	if err != nil {
+		utils.DoError(c, http.StatusInternalServerError, fmt.Errorf("unable to retrieve all sheets from db: %v", err.Error()))
+		return
+	}
+	for _, sheet := range *dbSheets {
+		if !utils.ExistsThumbnailToPdf(sheet.File, sheet.Uuid) {
+			log.Printf("Thumbnail to sheet %s does not exist, creating...", sheet.File)
+			err := utils.CreateThumbnailFromPdf(sheet.File, sheet.Uuid)
+			if err != nil {
+				utils.DoError(c, http.StatusInternalServerError, fmt.Errorf("unable to create thumbnail: %v", err.Error()))
+			}
+		}
+	}
+}
+
+func (server *Server) syncSheets(c *gin.Context, libraryPath string) {
 	localSheets := listSheetsFromFiles(libraryPath)
 	sort.Slice(localSheets, func(i, j int) bool {
 		return localSheets[i].File < localSheets[j].File

@@ -38,3 +38,11 @@ func CreateThumbnailFromPdf(pdf_file_path string, uuid string) (err error) {
 
 	return
 }
+
+func ExistsThumbnailToPdf(pdf_file_path string, uuid string) bool {
+	thumbnailPath := path.Join(Config().ConfigPath, "sheets/thumbnails", uuid+".jpg")
+	if _, err := os.Stat(thumbnailPath); errors.Is(err, os.ErrNotExist) {
+		return false
+	}
+	return true
+}
