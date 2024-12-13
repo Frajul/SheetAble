@@ -18,6 +18,7 @@ import (
 )
 
 // This syncs sheet files in sheets/local-sheets folder with the database
+// and does some clean up jobs
 func (server *Server) SyncLibrary(c *gin.Context) {
 	fmt.Printf("Syncing library...\n")
 
@@ -39,6 +40,10 @@ func (server *Server) SyncLibrary(c *gin.Context) {
 	log.Println("Fixing missing thumbnails...")
 	server.fixMissingThumbnails(c)
 
+	// Actually only needed when something went wrong
+	log.Println("Deleting unreferenced composers...")
+	server.deleteUnreferencedComposers(c)
+
 	c.String(http.StatusOK, "Sync successfull")
 }
 
@@ -57,6 +62,28 @@ func (server *Server) fixMissingThumbnails(c *gin.Context) {
 			err := utils.CreateThumbnailFromPdf(sheet.File, sheet.Uuid)
 			if err != nil {
 				utils.DoError(c, http.StatusInternalServerError, fmt.Errorf("unable to create thumbnail: %v", err.Error()))
+			}
+		}
+	}
+}
+
+func (server *Server) deleteUnreferencedComposers(c *gin.Context) {
+	composers, err := models.ListComposers(server.DB)
+	if err != nil {
+		utils.DoError(c, http.StatusInternalServerError, fmt.Errorf("error retrieving all composers from db: %v", err.Error()))
+		return
+	}
+
+	for _, composer := range composers {
+		isUnreferenced, err := models.IsComposerUnreferenced(server.DB, composer.Uuid)
+		if err != nil {
+			utils.DoError(c, http.StatusInternalServerError, fmt.Errorf("error checking if composer unreferenced: %v", err.Error()))
+		}
+		if isUnreferenced {
+			log.Printf("Composer %s unreferenced, deleting...", composer.Name)
+			err = models.DeleteComposer(server.DB, composer.Uuid)
+			if err != nil {
+				utils.DoError(c, http.StatusInternalServerError, fmt.Errorf("error deleting composer: %v", err.Error()))
 			}
 		}
 	}
