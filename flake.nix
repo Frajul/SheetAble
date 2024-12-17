@@ -50,7 +50,7 @@
           pname = "backend";
           version = "v${version}";
           src = ./backend;
-          vendorHash = "sha256-G47jdQCZzDpImPK47YElgJNelzFlWtIZoiRb23iSn6c=";
+          vendorHash = "sha256-dP7ymyG+12YMHyoNrudeekj52iIrjtO8SC9VxE5unTs=";
           nativeBuildInputs = with pkgs; [
             pkg-config
           ];
