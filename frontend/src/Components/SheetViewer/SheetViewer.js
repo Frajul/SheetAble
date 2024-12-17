@@ -61,7 +61,7 @@ function SheetViewer({
 
   const [isDesktop, setDesktop] = useState(window.innerHeight > windowHeight);
   const documentRef = useRef(null);
-  const [documentSize, setDocumentSize] = useState({ width: 0, height: 0 });
+  const [canvasSize, setCanvasSize] = useState({ width: 0, height: 0 });
   const [pdfDimensionsLeft, setPdfDimensionsLeft] = useState({
     width: 0,
     height: 0,
@@ -76,10 +76,10 @@ function SheetViewer({
     const nextDesktop = window.innerHeight > windowHeight;
     setDesktop(nextDesktop);
   };
-  const updateDocumentSize = () => {
+  const updateCanvasSize = () => {
     if (documentRef.current) {
       const { clientWidth, clientHeight } = documentRef.current;
-      setDocumentSize({ width: clientWidth, height: clientHeight });
+      setCanvasSize({ width: clientWidth, height: clientHeight });
     }
   };
 
@@ -309,14 +309,14 @@ function SheetViewer({
   };
 
   useEffect(() => {
-    updateDocumentSize(); // Update size on mount
+    updateCanvasSize(); // Update size on mount
 
     // Change Page Title
     document.title = `SheetAble - ${
       sheet.sheet_name === undefined ? "Sheet" : sheet.sheet_name
     }`;
 
-    window.addEventListener("resize", updateDocumentSize);
+    window.addEventListener("resize", updateCanvasSize);
     window.addEventListener("resize", updateMedia);
 
     if (sheetUuid && !pdfLoading) {
@@ -325,15 +325,15 @@ function SheetViewer({
     }
 
     return () => {
-      window.removeEventListener("resize", updateDocumentSize);
+      window.removeEventListener("resize", updateCanvasSize);
       window.removeEventListener("resize", updateMedia);
     };
   }, [pdf, pdfLoading]);
 
   const [editModal, setEditModal] = useState(false);
 
-  const scaleLeft = documentSize.height / pdfDimensionsLeft.height;
-  const scaleRight = documentSize.height / pdfDimensionsRight.height;
+  const scaleLeft = canvasSize.height / pdfDimensionsLeft.height;
+  const scaleRight = canvasSize.height / pdfDimensionsRight.height;
 
   return (
     <Fragment>
