@@ -128,7 +128,7 @@ function SheetViewer({
 
   const [pdfLoading, setPdfLoading] = useState(false);
   const [pdf, setPdf] = useState(undefined);
-  const [twoPageMode, setTwoPageMode] = useState(true);
+  const [twoPageMode, setTwoPageMode] = useState(false);
 
   const bySheetPages = findSheetByPages(sheetUuid, sheetPages);
   const bySheets = findSheetBySheets(sheetUuid, sheets);
