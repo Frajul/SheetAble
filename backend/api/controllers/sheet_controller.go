@@ -47,6 +47,15 @@ func (server *Server) GetSheetsPage(c *gin.Context) {
 	c.JSON(http.StatusOK, pageNew)
 }
 
+func (server *Server) GetSimpleSheetsList(c *gin.Context) {
+	sheets, err := models.ListSimpleSheets(server.DB)
+	if err != nil {
+		utils.DoError(c, http.StatusInternalServerError, err)
+		return
+	}
+	c.JSON(http.StatusOK, sheets)
+}
+
 /*
 Get PDF file and information about an individual sheet.
 Example request:

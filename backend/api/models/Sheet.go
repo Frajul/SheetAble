@@ -31,6 +31,13 @@ type Sheet struct {
 	InformationText string         `json:"information_text"`
 }
 
+type SimpleSheet struct {
+	Uuid         string `json:"uuid"`
+	Name         string `json:"sheet_name"`
+	ComposerUuid string `json:"composer_uuid"`
+	ComposerName string `json:"composer_name"`
+}
+
 func NewSheet(uuid string, name string, composerUuid string, file string, wasUploaded bool) *Sheet {
 	return &Sheet{
 		Uuid:            strings.TrimSpace(uuid),
@@ -155,6 +162,12 @@ func ListSheets(db *gorm.DB, pagination Pagination, composerUuid string) (*Pagin
 	pagination.Rows = sheets
 
 	return &pagination, nil
+}
+
+func ListSimpleSheets(db *gorm.DB) ([]*SimpleSheet, error) {
+	var sheets []*SimpleSheet
+	result := db.Model(&Sheet{}).Select("sheets.uuid as uuid, sheets.name as name, sheets.composer_uuid as composer_uuid, composers.name as composer_name").Joins("left join composers on composers.uuid = sheets.composer_uuid").Order("sheets.last_opened desc").Scan(&sheets)
+	return sheets, result.Error
 }
 
 func composerEqual(composerUuid string) func(db *gorm.DB) *gorm.DB {

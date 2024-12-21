@@ -44,7 +44,8 @@ func (server *Server) SetupRouter() {
 	secureApi.POST("/upload", server.UploadFile)
 	secureApi.GET("/sheets", server.GetSheetsPage)
 	secureApi.POST("/sheets", server.GetSheetsPage)
-	api.GET("/sheet/thumbnail/:sheetUuid", server.GetThumbnail)
+	secureApi.GET("/list/sheets", server.GetSimpleSheetsList)
+	secureApi.GET("/sheet/thumbnail/:sheetUuid", server.GetThumbnail)
 	secureApi.GET("/sheet/pdf/:sheetUuid", server.GetPDF)
 	secureApi.GET("/sheet/:sheetUuid", server.GetSheet)
 	secureApi.PUT("/sheet/:sheetUuid", server.UpdateSheet)
@@ -68,10 +69,10 @@ func (server *Server) SetupRouter() {
 	secureApi.POST("/composers", server.GetComposersPage)
 	secureApi.PUT("/composer/:composerUuid", server.UpdateComposer)
 	secureApi.DELETE("/composer/:composerUuid", server.DeleteComposer)
-	api.GET("/composer/portrait/:composerUuid", server.ServePortraits)
+	secureApi.GET("/composer/portrait/:composerUuid", server.ServePortraits)
 
 	// Library routes
-	api.POST("/library/refresh", server.SyncLibrary)
+	secureApi.POST("/library/refresh", server.SyncLibrary)
 
 	// Serve React
 	appBox := rice.MustFindBox("../../../frontend/build")
